@@ -1,0 +1,26 @@
+{
+  "name": "study-hub",
+  "version": "1.0.0",
+  "description": "A task managing app design to break down overwhelming tasks. Designed by COP4331 POOSD Group 15",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ThineRuler/study-hub.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/ThineRuler/study-hub/issues"
+  },
+  "homepage": "https://github.com/ThineRuler/study-hub#readme",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^18.0.9",
+    "mongoose": "^9.11.4"
+  }
+}
