@@ -19,4 +19,8 @@ const taskSchema = new mongoose.Schema({
   completedAt:      { type: Date },
 }, { timestamps: true });
 
+taskSchema.index({ userId: 1, completed: 1 });
+taskSchema.index({ userId: 1, dueDate: 1 });
+taskSchema.index({ parentTaskId: 1 });
+
 module.exports = mongoose.model('Task', taskSchema);
