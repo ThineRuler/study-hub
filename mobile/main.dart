@@ -100,6 +100,93 @@ class LoginPageState extends State<LoginPage>{
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
       ),
+      //Code used from https://www.geeksforgeeks.org/flutter/flutter-design-login-page-ui/
+      body: SingleChildScrollView(
+        child: Column(
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.only(top: 110.0),
+              child: Center(
+                child: Container(
+                    width: 200,
+                    height: 100,
+                    child: Text('Welcome to Small Steps', style: TextStyle(fontSize: 30, color: Colors.blueGrey),)),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 15),
+              child: TextField(
+                decoration: InputDecoration(
+                    border: OutlineInputBorder(),
+                    labelText: 'Email address',
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(
+                  left: 15.0, right: 15.0, top: 15, bottom: 0),
+              //padding: EdgeInsets.symmetric(horizontal: 15),
+              child: TextField(
+                obscureText: true,
+                decoration: InputDecoration(
+                    border: OutlineInputBorder(),
+                    labelText: 'Password',
+                    hintText: '8 characters minimum with special character'),
+              ),
+            ),
+
+          SizedBox(
+            height: 65,
+            width: 360,
+            child: Container(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 20.0),
+                  child: ElevatedButton(
+                    child: Text('Sign In', style: TextStyle(color: Colors.green, fontSize: 20),
+                    ),
+                    onPressed: (){
+                      
+                    },
+
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 20.0),
+                  child: ElevatedButton(
+                    child: Text('Register', style: TextStyle(color: Colors.green, fontSize: 20),
+                    ),
+                    onPressed: (){
+                      
+                    },
+
+                  ),
+                ),
+              ),
+          ),
+
+            SizedBox(
+              height: 50,
+            ),
+            Container(
+                child: Center(
+                  child: Row(
+                    children: [
+
+                      Padding(
+                        padding: const EdgeInsets.only(left:1.0),
+                        child: InkWell(
+                          onTap: (){
+                           
+                          },
+                            child: Text('Forgot Password', style: TextStyle(fontSize: 14, color: Colors.blue),)),
+                      )
+                    ],
+                  ),
+                )
+            )
+          ],
+        ),
+      ),
+
     ); 
   }
 
@@ -209,6 +296,85 @@ class RegisterState extends State<RegisterPage> {
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
       ),
+
+      body: SingleChildScrollView(
+        child: Column(
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.only(top: 110.0),
+              child: Center(
+                child: Container(
+                    width: 200,
+                    height: 100,
+                    child: Text('Welcome to Small Steps', style: TextStyle(fontSize: 30, color: Colors.green),)),
+              ),
+              child: Container(
+                    width: 200,
+                    height: 100,
+                    child: Text('Enter your desired information to proceed.', style: TextStyle(fontSize: 15, color: Colors.green),)),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 15),
+              child: TextField(
+                decoration: InputDecoration(
+                    border: OutlineInputBorder(),
+                    labelText: 'Email address',
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 15),
+              child: TextField(
+                decoration: InputDecoration(
+                    border: OutlineInputBorder(),
+                    labelText: 'Username',
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(
+                  left: 15.0, right: 15.0, top: 15, bottom: 0),
+              //padding: EdgeInsets.symmetric(horizontal: 15),
+              child: TextField(
+                obscureText: true,
+                decoration: InputDecoration(
+                    border: OutlineInputBorder(),
+                    labelText: 'Password',
+                    hintText: '8 characters minimum with special character'),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(
+                  left: 15.0, right: 15.0, top: 15, bottom: 0),
+              //padding: EdgeInsets.symmetric(horizontal: 15),
+              child: TextField(
+                obscureText: true,
+                decoration: InputDecoration(
+                    border: OutlineInputBorder(),
+                    labelText: 'Confirm Password',
+                    hintText: '8 characters minimum with special character'),
+              ),
+            ),
+
+          SizedBox(
+            height: 65,
+            width: 360,
+            child: Container(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 20.0),
+                  child: ElevatedButton(
+                    child: Text('Next', style: TextStyle(color: Colors.green, fontSize: 20),
+                    ),
+                    onPressed: (){
+                      
+                    },
+
+                  ),
+                ),
+          ),
+          ],
+        ),
+      ),
+
     ); 
   }
 }
@@ -230,7 +396,67 @@ class EmailConfirmState extends State<EmailConfirmationSend> {
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
       ),
-    ); 
+
+      body: SingleChildScrollView(
+        child: Column(
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.only(top: 110.0),
+              child: Center(
+                child: Container(
+                    width: 200,
+                    height: 100,
+                    child: Text('Welcome to Small Steps', style: TextStyle(fontSize: 30, color: Colors.blueGrey),)),
+              ),
+              child: Center(
+                child: Container(
+                    width: 200,
+                    height: 100,
+                    child: Text('Enter your registered email address. We'll send you a code.', style: TextStyle(fontSize: 30, color: Colors.black),)),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 15),
+              child: TextField(
+                decoration: InputDecoration(
+                    border: OutlineInputBorder(),
+                    labelText: 'Email address',
+              ),
+            ),
+
+          SizedBox(
+            height: 65,
+            width: 360,
+            child: Container(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 20.0),
+                  child: ElevatedButton(
+                    child: Text('Cancel', style: TextStyle(color: Colors.white, fontSize: 20),
+                    ),
+                    onPressed: (){
+                      
+                    },
+
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 20.0),
+                  child: ElevatedButton(
+                    child: Text('Next', style: TextStyle(color: Colors.green, fontSize: 20),
+                    ),
+                    onPressed: (){
+                      
+                    },
+
+                  ),
+                ),
+              ),
+          ),
+          ],
+        ),
+      ),
+
+    );
   }
 }
 
