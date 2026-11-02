@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:get/get.dart';
 
 
-String displayName = "null";
-String userID = "null";
+
+String displayName = "";
+String userID = "";
+bool verifiedState = false;
 
 String theme = "dark";
 double importance = 0;
@@ -14,8 +14,8 @@ double dueDate = 0;
 double time = 0; 
 
 class LoginInfo{
-  String email = "null";
-  String password = "null";
+  String email = "";
+  String password = "";
   bool isVerified = false;
 
   LoginInfo({required this.email, required this.password, required this.isVerified});
@@ -47,10 +47,12 @@ void main() {
       '/newitem': (context) => const NewItemPage(),
       '/calendar':(context) => const CalendarPage(),
       '/archive':(context) => const ArchivePage(),
-      '/password':(context) => const PasswordResetPage(),
+      '/passwordreset':(context) => const PasswordResetPage(),
       '/register':(context) => const RegisterPage(),
       '/email':(context) => const EmailConfirmationSend(),
-      '/emailcode':(context) => const EmailCodeConfirm()
+      '/emailcode':(context) => const EmailCodeConfirm(),
+      '/password':(context) => const PasswordConfirmationSend(),
+      '/passwordcode':(context) => PasswordCodeConfirm()
     },
     debugShowCheckedModeBanner: false,
   ));
@@ -123,6 +125,9 @@ class LoginPage extends StatefulWidget {
 
 class LoginPageState extends State<LoginPage> {
 
+  String email = "";
+  String password = "";
+
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
 
@@ -146,7 +151,7 @@ class LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("New Task"),
+        title: const Text("Login"),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
       ),
@@ -199,8 +204,27 @@ class LoginPageState extends State<LoginPage> {
                           style: TextStyle(color: Colors.green, fontSize: 20),
                         ),
                         onPressed: () {
-                          final LoginInfo attempt = getLoginInfo();
+                          //final LoginInfo attempt = getLoginInfo();
 
+                          if((email == "") || (password == "")){
+                            (BuildContext context) => AlertDialog(
+                              title: const Text('Invalid Input'),
+                              content: const Text('One or more fields are missing'),
+                              actions: <Widget>[
+                                TextButton(onPressed: () => Navigator.pop(context, 'OK'),
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            );
+                          }
+
+                          //placeholder
+
+                          if(verifiedState == false){
+                            Navigator.pushNamed(context, '/email');
+                          } else{
+                            Navigator.pushNamed(context, '/home');                           
+                          }
 
                         },
                       ),
@@ -223,14 +247,16 @@ class LoginPageState extends State<LoginPage> {
             ),
 
             SizedBox(height: 50),
-            Container(
-              child: Center(
+            
+              Center(
                 child: Row(
                   children: [
                     Padding(
                       padding: const EdgeInsets.only(left: 1.0),
                       child: InkWell(
-                        onTap: () {},
+                        onTap: () {
+                          Navigator.pushNamed(context, '/password');
+                        },
                         child: Text(
                           'Forgot Password',
                           style: TextStyle(fontSize: 14, color: Colors.blue),
@@ -240,8 +266,7 @@ class LoginPageState extends State<LoginPage> {
                   ],
                 ),
               ),
-            ),
-          ],
+            ],
         ),
       ),
     );
@@ -257,19 +282,20 @@ class NewItemPage extends StatefulWidget {
 
 class NewItemState extends State<NewItemPage> {
 
-  String displayName = "null";
+  String displayName = "";
   String theme = "dark";
   double importance = 0;
   double dueDate = 0;
   double time = 0; 
 
 
-  String taskName = "null";
+  String taskName = "";
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: BackButton(),
         title: const Text("New Task"),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
@@ -291,7 +317,7 @@ class CalendarState extends State<CalendarPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("New Task"),
+        title: const Text("Calendar"),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
       ),
@@ -308,7 +334,7 @@ class ArchivePage extends StatefulWidget {
 
 class ArchiveState extends State<ArchivePage> {
 
-  String displayName = "null";
+  String displayName = "";
   String theme = "dark";
   double importance = 0;
   double dueDate = 0;
@@ -319,6 +345,7 @@ class ArchiveState extends State<ArchivePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: BackButton(),
         title: const Text("New Task"),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
@@ -335,13 +362,136 @@ class PasswordResetPage extends StatefulWidget {
 }
 
 class PasswordResetState extends State<PasswordResetPage> {
+
+  String newPasswordOne = "";
+  String newPasswordTwo = "";
+  String oldPassword = "";
+
+  final passwordControllerOne = TextEditingController();
+  final passwordControllerTwo = TextEditingController();
+
+  @override
+  void dispose() {
+    // Clean up the controller when the widget is disposed.
+    passwordControllerOne.dispose();
+    passwordControllerTwo.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("New Task"),
+        title: const Text("Login"),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
+      ),
+
+      body: SingleChildScrollView(
+        child: Column(
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.only(top: 110.0),
+              child: Center(
+                child: SizedBox(
+                  width: 200,
+                  height: 100,
+                  child: Text('Welcome to Small Steps', style: TextStyle(fontSize: 30, color: Colors.blueGrey),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 15),
+              child: TextField(controller: passwordControllerOne,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'New Password',
+                ),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 15),
+              child: TextField(controller: passwordControllerTwo,
+                obscureText: true,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Confirm New Password',
+                  hintText: '8 characters minimum with special character',
+                ),
+              ),
+            ),
+            SizedBox(
+              height: 65,
+              width: 360,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 20.0),
+                      child: ElevatedButton(
+                        child: Text(
+                          'Confirm',
+                          style: TextStyle(color: Colors.green, fontSize: 20),
+                        ),
+                        onPressed: () {
+                          //final LoginInfo attempt = getLoginInfo();
+
+                          if((newPasswordOne == "") || (newPasswordTwo == "")){
+                            (BuildContext context) => AlertDialog(
+                              title: const Text('Invalid Input'),
+                              content: const Text('One or more fields are missing'),
+                              actions: <Widget>[
+                                TextButton(onPressed: () => Navigator.pop(context, 'OK'),
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            );
+                          }
+
+                          if(newPasswordOne == newPasswordTwo){
+
+                            //placeholder 
+                            if(newPasswordOne == oldPassword){
+                              (BuildContext context) => AlertDialog(
+                              title: const Text('Invalid Input'),
+                              content: const Text('New password is the same as old one'),
+                              actions: <Widget>[
+                                TextButton(onPressed: () => Navigator.pop(context, 'OK'),
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            );
+
+                            }else{
+                              //placeholder
+                              Navigator.pushNamed(context, '/');
+
+                            }
+                          } else{
+                            (BuildContext context) => AlertDialog(
+                              title: const Text('Invalid Input'),
+                              content: const Text('Entered passwords do not match'),
+                              actions: <Widget>[
+                                TextButton(onPressed: () => Navigator.pop(context, 'OK'),
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            );
+                        
+                          }
+
+                        },
+                      ),
+                    ),
+                  ),
+                  
+                ],
+              ),
+            ),
+
+            ],
+        ),
       ),
     );
   }
@@ -355,10 +505,31 @@ class RegisterPage extends StatefulWidget {
 }
 
 class RegisterState extends State<RegisterPage> {
+
+  String email = "";
+  String passwordOne = "";
+  String passwordTwo = "";
+
+  final emailController = TextEditingController();
+  final nameController = TextEditingController();
+  final passwordControllerOne = TextEditingController();
+  final passwordControllerTwo = TextEditingController();
+
+  @override
+  void dispose() {
+    // Clean up the controller when the widget is disposed.
+    emailController.dispose();
+    nameController.dispose();
+    passwordControllerOne.dispose();
+    passwordControllerTwo.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: BackButton(),
         title: const Text("New Task"),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
@@ -367,6 +538,7 @@ class RegisterState extends State<RegisterPage> {
       body: SingleChildScrollView(
         child: Column(
           children: <Widget>[
+          
             Padding(
               padding: const EdgeInsets.only(top: 110.0),
               child: Column(
@@ -390,7 +562,7 @@ class RegisterState extends State<RegisterPage> {
             ),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 15),
-              child: TextField(
+              child: TextField(controller: emailController,
                 decoration: InputDecoration(
                   border: OutlineInputBorder(),
                   labelText: 'Email address',
@@ -399,7 +571,7 @@ class RegisterState extends State<RegisterPage> {
             ),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 15),
-              child: TextField(
+              child: TextField(controller: nameController,
                 decoration: InputDecoration(
                   border: OutlineInputBorder(),
                   labelText: 'Username',
@@ -414,7 +586,7 @@ class RegisterState extends State<RegisterPage> {
                 bottom: 0,
               ),
               //padding: EdgeInsets.symmetric(horizontal: 15),
-              child: TextField(
+              child: TextField(controller: passwordControllerOne,
                 obscureText: true,
                 decoration: InputDecoration(
                   border: OutlineInputBorder(),
@@ -431,7 +603,7 @@ class RegisterState extends State<RegisterPage> {
                 bottom: 0,
               ),
               //padding: EdgeInsets.symmetric(horizontal: 15),
-              child: TextField(
+              child: TextField(controller: passwordControllerTwo,
                 obscureText: true,
                 decoration: InputDecoration(
                   border: OutlineInputBorder(),
@@ -449,7 +621,39 @@ class RegisterState extends State<RegisterPage> {
                 child: ElevatedButton(
                   child: Text('Next', style: TextStyle(color: Colors.green, fontSize: 20),
                   ),
-                  onPressed: () {},
+                  onPressed: () {
+                    email = emailController.text;
+                    displayName = nameController.text;
+                    passwordOne = passwordControllerOne.text;
+                    passwordTwo = passwordControllerTwo.text;
+
+                    if((email == "") || (displayName == "") || (passwordOne == "") || (passwordTwo == "")){
+                        (BuildContext context) => AlertDialog(
+                        title: const Text('Invalid Input'),
+                        content: const Text('One or more fields are missing'),
+                        actions: <Widget>[
+                        TextButton(onPressed: () => Navigator.pop(context, 'OK'),
+                        child: const Text('OK'),
+                          ),
+                        ],
+                      );
+                    }
+
+                    if(passwordOne != passwordTwo){
+                      
+                      (BuildContext context) => AlertDialog(
+                        title: const Text('Invalid Input'),
+                        content: const Text('Passwords do not match'),
+                        actions: <Widget>[
+                        TextButton(onPressed: () => Navigator.pop(context, 'OK'),
+                        child: const Text('OK'),
+                          ),
+                        ],
+                      );
+                    }
+
+
+                  },
                 ),
               ),
             ),
@@ -468,10 +672,21 @@ class EmailConfirmationSend extends StatefulWidget {
 }
 
 class EmailConfirmState extends State<EmailConfirmationSend> {
+
+  final emailController = TextEditingController();
+
+  @override
+  void dispose() {
+    // Clean up the controller when the widget is disposed.
+    emailController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: BackButton(),
         title: const Text("New Task"),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
@@ -505,7 +720,7 @@ class EmailConfirmState extends State<EmailConfirmationSend> {
             ),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 15),
-              child: TextField(
+              child: TextField(controller: emailController,
                 decoration: InputDecoration(
                   border: OutlineInputBorder(),
                   labelText: 'Email address',
@@ -521,21 +736,11 @@ class EmailConfirmState extends State<EmailConfirmationSend> {
                     child: Padding(
                       padding: const EdgeInsets.only(top: 20.0),
                       child: ElevatedButton(
-                        child: Text('Cancel', style: TextStyle(color: Colors.white, fontSize: 20),
-                        ),
-                        onPressed: () {},
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 20.0),
-                      child: ElevatedButton(
                         child: Text('Next', style: TextStyle(color: Colors.green, fontSize: 20),
                         ),
 
                         onPressed: () {
-
+                            Navigator.pushNamed(context, '/emailcode');
                         },
                       ),
                     ),
@@ -554,17 +759,297 @@ class EmailCodeConfirm extends StatefulWidget {
   const EmailCodeConfirm({super.key});
 
   @override
-  CodeConfirmState createState() => CodeConfirmState();
+  EmailCodeConfirmState createState() => EmailCodeConfirmState();
 }
 
-class CodeConfirmState extends State<EmailCodeConfirm> {
+class EmailCodeConfirmState extends State<EmailCodeConfirm> {
+
+  String enteredCode = "";
+  String realCode = "";
+
+  final codeController = TextEditingController();
+
+  @override
+  void dispose() {
+    // Clean up the controller when the widget is disposed.
+    codeController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: BackButton(),
         title: const Text("New Task"),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
+      ),
+
+      body: SingleChildScrollView(
+        child: Column(
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.only(top: 110.0),
+              child: Center(
+                child: SizedBox(
+                  width: 200,
+                  height: 100,
+                  child: Text('Welcome to Small Steps', style: TextStyle(fontSize: 30, color: Colors.blueGrey),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 15),
+              child: TextField(controller: codeController,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Confirmation Code',
+                ),
+              ),
+            ),
+            SizedBox(
+              height: 65,
+              width: 360,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 20.0),
+                      child: ElevatedButton(
+                        child: Text(
+                          'Confirm',
+                          style: TextStyle(color: Colors.green, fontSize: 20),
+                        ),
+                        onPressed: () {
+                          //placeholder
+
+                          enteredCode = codeController.text;
+
+
+                          if(enteredCode == realCode){
+                            verifiedState = true;
+                            Navigator.pushNamed(context, '/');
+
+                          }else{
+                            (BuildContext context) => AlertDialog(
+                              title: const Text('Invalid Input'),
+                              content: const Text('Validation code does not match sent code'),
+                              actions: <Widget>[
+                                TextButton(onPressed: () => Navigator.pop(context, 'OK'),
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            );
+                          }
+
+                        },
+                      ),
+                    ),
+                  ),
+                  
+                ],
+              ),
+            ),
+            
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class PasswordConfirmationSend extends StatefulWidget {
+  const PasswordConfirmationSend({super.key});
+
+  @override
+  PasswordConfirmState createState() => PasswordConfirmState();
+}
+
+class PasswordConfirmState extends State<EmailConfirmationSend> {
+
+  final emailController = TextEditingController();
+
+  @override
+  void dispose() {
+    // Clean up the controller when the widget is disposed.
+    emailController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        leading: BackButton(),
+        title: const Text("Reset Password"),
+        backgroundColor: Colors.green,
+        foregroundColor: Colors.white,
+      ),
+
+      body: SingleChildScrollView(
+        child: Column(
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.only(top: 110.0),
+              child: Column(
+                children: [
+                  Center(
+                    child: SizedBox(
+                      width: 200,
+                      height: 100,
+                      child: Text('Welcome to Small Steps', style: TextStyle(fontSize: 30, color: Colors.blueGrey),
+                      ),
+                    ),
+                  ),
+                  Center(
+                    child: SizedBox(
+                      width: 200,
+                      height: 100,
+                      child: Text('Enter your registered email address. We will send you a code.', style: TextStyle(fontSize: 30, color: Colors.black),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 15),
+              child: TextField(controller: emailController,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Email address',
+                ),
+              ),
+            ),
+            SizedBox(
+              height: 65,
+              width: 360,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 20.0),
+                      child: ElevatedButton(
+                        child: Text('Next', style: TextStyle(color: Colors.green, fontSize: 20),
+                        ),
+
+                        onPressed: () {
+                            Navigator.pushNamed(context, '/passwordcode');
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class PasswordCodeConfirm extends StatefulWidget {
+  const PasswordCodeConfirm({super.key});
+
+  @override
+  PasswordCodeConfirmState createState() => PasswordCodeConfirmState();
+}
+
+class PasswordCodeConfirmState extends State<EmailCodeConfirm> {
+
+  String enteredCode = "";
+  String realCode = "";
+
+  final codeController = TextEditingController();
+
+  @override
+  void dispose() {
+    // Clean up the controller when the widget is disposed.
+    codeController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        leading: BackButton(),
+        title: const Text("Password Reset"),
+        backgroundColor: Colors.green,
+        foregroundColor: Colors.white,
+      ),
+
+      body: SingleChildScrollView(
+        child: Column(
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.only(top: 110.0),
+              child: Center(
+                child: SizedBox(
+                  width: 200,
+                  height: 100,
+                  child: Text('Welcome to Small Steps', style: TextStyle(fontSize: 30, color: Colors.blueGrey),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 15),
+              child: TextField(controller: codeController,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Confirmation Code',
+                ),
+              ),
+            ),
+            SizedBox(
+              height: 65,
+              width: 360,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 20.0),
+                      child: ElevatedButton(
+                        child: Text(
+                          'Confirm',
+                          style: TextStyle(color: Colors.green, fontSize: 20),
+                        ),
+                        onPressed: () {
+                          //placeholder
+
+                          enteredCode = codeController.text;
+
+
+                          if(enteredCode == realCode){
+                            verifiedState = true;
+                            Navigator.pushNamed(context, '/');
+                          }else{
+                            (BuildContext context) => AlertDialog(
+                              title: const Text('Invalid Input'),
+                              content: const Text('Validation code does not match sent code'),
+                              actions: <Widget>[
+                                TextButton(onPressed: () => Navigator.pop(context, 'OK'),
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            );
+                          }
+
+                        },
+                      ),
+                    ),
+                  ),
+                  
+                ],
+              ),
+            ),
+            
+          ],
+        ),
       ),
     );
   }
