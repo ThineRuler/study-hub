@@ -1,4 +1,42 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:get/get.dart';
+
+
+String displayName = "null";
+String userID = "null";
+
+String theme = "dark";
+double importance = 0;
+double dueDate = 0;
+double time = 0; 
+
+class LoginInfo{
+  String email = "null";
+  String password = "null";
+  bool isVerified = false;
+
+  LoginInfo({required this.email, required this.password, required this.isVerified});
+
+  factory LoginInfo.fromJson(Map<String, dynamic> json) {
+    
+    displayName = json['displayName'];
+    userID = json['_id'];
+    theme = json['theme'];
+    importance = json['importance'];
+    dueDate = json['dueDate'];
+    time = json['time'];
+
+    return LoginInfo(
+      email: json['id'],
+      password: json['name'],
+      isVerified: json['email'],
+    );
+  }
+  
+}
 
 void main() {
   runApp(MaterialApp(
@@ -15,7 +53,7 @@ void main() {
       '/emailcode':(context) => const EmailCodeConfirm()
     },
     debugShowCheckedModeBanner: false,
-  )); //MaterialApp
+  ));
 }
 
 // HomePage is the main screen of the app
@@ -27,7 +65,6 @@ class HomePage extends StatefulWidget {
 }
 
 class HomePageState extends State<HomePage> {
-
   int objectIndex = 0;
 
   // Method to handle tab selection
@@ -36,7 +73,7 @@ class HomePageState extends State<HomePage> {
       objectIndex = index;
     });
   }
-  
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -49,13 +86,12 @@ class HomePageState extends State<HomePage> {
       //Navigation bar sourced from https://www.geeksforgeeks.org/flutter/bottomnavigationbar-widget-in-flutter/
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(
             icon: Icon(Icons.calendar_today),
             label: 'Calendar',
+            
+
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.plus_one),
@@ -74,8 +110,7 @@ class HomePageState extends State<HomePage> {
         selectedItemColor: const Color.fromARGB(255, 33, 131, 38),
         onTap: tapObject,
       ),
-
-    ); 
+    );
   }
 }
 
@@ -86,11 +121,26 @@ class LoginPage extends StatefulWidget {
   LoginPageState createState() => LoginPageState();
 }
 
-class LoginPageState extends State<LoginPage>{
+class LoginPageState extends State<LoginPage> {
 
-  String email = "null";
-  String password = "null";
-  String displayName = "null";
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
+
+  @override
+  void dispose() {
+    // Clean up the controller when the widget is disposed.
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
+
+  static Future<LoginInfo?> getLoginInfo() async {
+
+      final accountInfo = await http.get(Uri.parse('/api/users/me'));
+
+      return LoginInfo.fromJson(json.decode(accountInfo.body));
+     
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -100,98 +150,103 @@ class LoginPageState extends State<LoginPage>{
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
       ),
-      //Code used from https://www.geeksforgeeks.org/flutter/flutter-design-login-page-ui/
+
       body: SingleChildScrollView(
         child: Column(
           children: <Widget>[
             Padding(
               padding: const EdgeInsets.only(top: 110.0),
               child: Center(
-                child: Container(
-                    width: 200,
-                    height: 100,
-                    child: Text('Welcome to Small Steps', style: TextStyle(fontSize: 30, color: Colors.blueGrey),)),
+                child: SizedBox(
+                  width: 200,
+                  height: 100,
+                  child: Text('Welcome to Small Steps', style: TextStyle(fontSize: 30, color: Colors.blueGrey),
+                  ),
+                ),
               ),
             ),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 15),
-              child: TextField(
+              child: TextField(controller: emailController,
                 decoration: InputDecoration(
-                    border: OutlineInputBorder(),
-                    labelText: 'Email address',
+                  border: OutlineInputBorder(),
+                  labelText: 'Email address',
+                ),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.only(
-                  left: 15.0, right: 15.0, top: 15, bottom: 0),
-              //padding: EdgeInsets.symmetric(horizontal: 15),
-              child: TextField(
+              padding: EdgeInsets.symmetric(horizontal: 15),
+              child: TextField(controller: passwordController,
                 obscureText: true,
                 decoration: InputDecoration(
-                    border: OutlineInputBorder(),
-                    labelText: 'Password',
-                    hintText: '8 characters minimum with special character'),
+                  border: OutlineInputBorder(),
+                  labelText: 'Password',
+                  hintText: '8 characters minimum with special character',
+                ),
               ),
             ),
-
-          SizedBox(
-            height: 65,
-            width: 360,
-            child: Container(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 20.0),
-                  child: ElevatedButton(
-                    child: Text('Sign In', style: TextStyle(color: Colors.green, fontSize: 20),
-                    ),
-                    onPressed: (){
-                      
-                    },
-
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 20.0),
-                  child: ElevatedButton(
-                    child: Text('Register', style: TextStyle(color: Colors.green, fontSize: 20),
-                    ),
-                    onPressed: (){
-                      
-                    },
-
-                  ),
-                ),
-              ),
-          ),
-
             SizedBox(
-              height: 50,
-            ),
-            Container(
-                child: Center(
-                  child: Row(
-                    children: [
+              height: 65,
+              width: 360,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 20.0),
+                      child: ElevatedButton(
+                        child: Text(
+                          'Sign In',
+                          style: TextStyle(color: Colors.green, fontSize: 20),
+                        ),
+                        onPressed: () {
+                          final LoginInfo attempt = getLoginInfo();
 
-                      Padding(
-                        padding: const EdgeInsets.only(left:1.0),
-                        child: InkWell(
-                          onTap: (){
-                           
-                          },
-                            child: Text('Forgot Password', style: TextStyle(fontSize: 14, color: Colors.blue),)),
-                      )
-                    ],
+
+                        },
+                      ),
+                    ),
                   ),
-                )
-            )
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 20.0),
+                      child: ElevatedButton(
+                        child: Text(
+                          'Register',
+                          style: TextStyle(color: Colors.green, fontSize: 20),
+                        ),
+                        onPressed: () {},
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            SizedBox(height: 50),
+            Container(
+              child: Center(
+                child: Row(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(left: 1.0),
+                      child: InkWell(
+                        onTap: () {},
+                        child: Text(
+                          'Forgot Password',
+                          style: TextStyle(fontSize: 14, color: Colors.blue),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),
-
-    ); 
+    );
   }
-
 }
-
 
 class NewItemPage extends StatefulWidget {
   const NewItemPage({super.key});
@@ -201,7 +256,14 @@ class NewItemPage extends StatefulWidget {
 }
 
 class NewItemState extends State<NewItemPage> {
-  
+
+  String displayName = "null";
+  String theme = "dark";
+  double importance = 0;
+  double dueDate = 0;
+  double time = 0; 
+
+
   String taskName = "null";
 
   @override
@@ -212,7 +274,7 @@ class NewItemState extends State<NewItemPage> {
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
       ),
-    ); 
+    );
   }
 }
 
@@ -224,7 +286,7 @@ class CalendarPage extends StatefulWidget {
 }
 
 class CalendarState extends State<CalendarPage> {
-  
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -233,7 +295,7 @@ class CalendarState extends State<CalendarPage> {
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
       ),
-    ); 
+    );
   }
 }
 
@@ -245,6 +307,13 @@ class ArchivePage extends StatefulWidget {
 }
 
 class ArchiveState extends State<ArchivePage> {
+
+  String displayName = "null";
+  String theme = "dark";
+  double importance = 0;
+  double dueDate = 0;
+  double time = 0; 
+
   
   @override
   Widget build(BuildContext context) {
@@ -254,19 +323,18 @@ class ArchiveState extends State<ArchivePage> {
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
       ),
-    ); 
+    );
   }
 }
 
 class PasswordResetPage extends StatefulWidget {
   const PasswordResetPage({super.key});
 
-   @override
+  @override
   PasswordResetState createState() => PasswordResetState();
 }
 
 class PasswordResetState extends State<PasswordResetPage> {
-  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -275,19 +343,18 @@ class PasswordResetState extends State<PasswordResetPage> {
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
       ),
-    ); 
+    );
   }
 }
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
 
-   @override
+  @override
   RegisterState createState() => RegisterState();
 }
 
 class RegisterState extends State<RegisterPage> {
-  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -302,92 +369,105 @@ class RegisterState extends State<RegisterPage> {
           children: <Widget>[
             Padding(
               padding: const EdgeInsets.only(top: 110.0),
-              child: Center(
-                child: Container(
-                    width: 200,
-                    height: 100,
-                    child: Text('Welcome to Small Steps', style: TextStyle(fontSize: 30, color: Colors.green),)),
-              ),
-              child: Container(
-                    width: 200,
-                    height: 100,
-                    child: Text('Enter your desired information to proceed.', style: TextStyle(fontSize: 15, color: Colors.green),)),
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 15),
-              child: TextField(
-                decoration: InputDecoration(
-                    border: OutlineInputBorder(),
-                    labelText: 'Email address',
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 15),
-              child: TextField(
-                decoration: InputDecoration(
-                    border: OutlineInputBorder(),
-                    labelText: 'Username',
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(
-                  left: 15.0, right: 15.0, top: 15, bottom: 0),
-              //padding: EdgeInsets.symmetric(horizontal: 15),
-              child: TextField(
-                obscureText: true,
-                decoration: InputDecoration(
-                    border: OutlineInputBorder(),
-                    labelText: 'Password',
-                    hintText: '8 characters minimum with special character'),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(
-                  left: 15.0, right: 15.0, top: 15, bottom: 0),
-              //padding: EdgeInsets.symmetric(horizontal: 15),
-              child: TextField(
-                obscureText: true,
-                decoration: InputDecoration(
-                    border: OutlineInputBorder(),
-                    labelText: 'Confirm Password',
-                    hintText: '8 characters minimum with special character'),
-              ),
-            ),
-
-          SizedBox(
-            height: 65,
-            width: 360,
-            child: Container(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 20.0),
-                  child: ElevatedButton(
-                    child: Text('Next', style: TextStyle(color: Colors.green, fontSize: 20),
+              child: Column(
+                children: [
+                  Center(
+                    child: SizedBox(
+                      width: 200,
+                      height: 100,
+                      child: Text('Welcome to Small Steps', style: TextStyle(fontSize: 30, color: Colors.green),
+                      ),
                     ),
-                    onPressed: (){
-                      
-                    },
-
                   ),
+                  SizedBox(
+                    width: 200,
+                    height: 100,
+                    child: Text('Enter your desired information to proceed.', style: TextStyle(fontSize: 15, color: Colors.green),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 15),
+              child: TextField(
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Email address',
                 ),
-          ),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 15),
+              child: TextField(
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Username',
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(
+                left: 15.0,
+                right: 15.0,
+                top: 15,
+                bottom: 0,
+              ),
+              //padding: EdgeInsets.symmetric(horizontal: 15),
+              child: TextField(
+                obscureText: true,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Password',
+                  hintText: '8 characters minimum with special character',
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(
+                left: 15.0,
+                right: 15.0,
+                top: 15,
+                bottom: 0,
+              ),
+              //padding: EdgeInsets.symmetric(horizontal: 15),
+              child: TextField(
+                obscureText: true,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Confirm Password',
+                  hintText: '8 characters minimum with special character',
+                ),
+              ),
+            ),
+
+            SizedBox(
+              height: 65,
+              width: 360,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 20.0),
+                child: ElevatedButton(
+                  child: Text('Next', style: TextStyle(color: Colors.green, fontSize: 20),
+                  ),
+                  onPressed: () {},
+                ),
+              ),
+            ),
           ],
         ),
       ),
-
-    ); 
+    );
   }
 }
 
 class EmailConfirmationSend extends StatefulWidget {
   const EmailConfirmationSend({super.key});
 
-   @override
+  @override
   EmailConfirmState createState() => EmailConfirmState();
 }
 
 class EmailConfirmState extends State<EmailConfirmationSend> {
-  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -402,60 +482,70 @@ class EmailConfirmState extends State<EmailConfirmationSend> {
           children: <Widget>[
             Padding(
               padding: const EdgeInsets.only(top: 110.0),
-              child: Center(
-                child: Container(
-                    width: 200,
-                    height: 100,
-                    child: Text('Welcome to Small Steps', style: TextStyle(fontSize: 30, color: Colors.blueGrey),)),
-              ),
-              child: Center(
-                child: Container(
-                    width: 200,
-                    height: 100,
-                    child: Text('Enter your registered email address. We'll send you a code.', style: TextStyle(fontSize: 30, color: Colors.black),)),
+              child: Column(
+                children: [
+                  Center(
+                    child: SizedBox(
+                      width: 200,
+                      height: 100,
+                      child: Text('Welcome to Small Steps', style: TextStyle(fontSize: 30, color: Colors.blueGrey),
+                      ),
+                    ),
+                  ),
+                  Center(
+                    child: SizedBox(
+                      width: 200,
+                      height: 100,
+                      child: Text('Enter your registered email address. We will send you a code.', style: TextStyle(fontSize: 30, color: Colors.black),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 15),
               child: TextField(
                 decoration: InputDecoration(
-                    border: OutlineInputBorder(),
-                    labelText: 'Email address',
+                  border: OutlineInputBorder(),
+                  labelText: 'Email address',
+                ),
               ),
             ),
-
-          SizedBox(
-            height: 65,
-            width: 360,
-            child: Container(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 20.0),
-                  child: ElevatedButton(
-                    child: Text('Cancel', style: TextStyle(color: Colors.white, fontSize: 20),
+            SizedBox(
+              height: 65,
+              width: 360,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 20.0),
+                      child: ElevatedButton(
+                        child: Text('Cancel', style: TextStyle(color: Colors.white, fontSize: 20),
+                        ),
+                        onPressed: () {},
+                      ),
                     ),
-                    onPressed: (){
-                      
-                    },
-
                   ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 20.0),
-                  child: ElevatedButton(
-                    child: Text('Next', style: TextStyle(color: Colors.green, fontSize: 20),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 20.0),
+                      child: ElevatedButton(
+                        child: Text('Next', style: TextStyle(color: Colors.green, fontSize: 20),
+                        ),
+
+                        onPressed: () {
+
+                        },
+                      ),
                     ),
-                    onPressed: (){
-                      
-                    },
-
                   ),
-                ),
+                ],
               ),
-          ),
+            ),
           ],
         ),
       ),
-
     );
   }
 }
@@ -463,12 +553,11 @@ class EmailConfirmState extends State<EmailConfirmationSend> {
 class EmailCodeConfirm extends StatefulWidget {
   const EmailCodeConfirm({super.key});
 
-   @override
+  @override
   CodeConfirmState createState() => CodeConfirmState();
 }
 
 class CodeConfirmState extends State<EmailCodeConfirm> {
-  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -477,6 +566,6 @@ class CodeConfirmState extends State<EmailCodeConfirm> {
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
       ),
-    ); 
+    );
   }
 }
