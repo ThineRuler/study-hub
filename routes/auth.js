@@ -135,7 +135,7 @@ router.post('/sign-in', async (req, res, next) => {
 });
 
 // POST /sign-out
-router.post('/sign-out', async (req, res, next) => {
+router.post('/sign-out', async (req, res, next) => { //front end sign out landing page
   try {
     res.status(200).json({
       success: true,
@@ -228,7 +228,7 @@ router.post('/forgot-password', async (req, res, next) => {
     user.resetToken = token;
     await user.save();
 
-    const resetUrl = `${process.env.SERVER_URL}/api/auth/reset-password?token=${token}`;
+    const resetUrl = `${process.env.SERVER_URL}/api/auth/reset-password?token=${token}`; //needs reset landing page
 
     await sendEmail({
       to: user.email,
@@ -239,9 +239,15 @@ router.post('/forgot-password', async (req, res, next) => {
       },
     });
 
+    const sanitizedUser = user.toObject();
+    delete sanitizedUser.passwordHash;
+
     res.status(200).json({
       success: true,
       message: 'If an account exists, a reset link has been sent.',
+      body: {
+        user: sanitizedUser
+      }
     });
   } catch (error) {
     next(error);
