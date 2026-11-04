@@ -215,3 +215,13 @@ Body fields: `displayName`, `settings.theme`, and `settings.weights.importance`,
   }
 }
 ```
+
+
+## Frontend
+
+To test the frontend of the web app, change to the frontend directory and start the server.
+
+```bash
+cd frontend
+npm run dev
+```
