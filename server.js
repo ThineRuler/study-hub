@@ -17,6 +17,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/groups', require('./routes/groups'));
 app.use('/api/users', require('./routes/users'));
+app.use('/api/auth', require('./routes/auth'));
 
 app.use((err, req, res, next) => {
   if (res.headersSent) return next(err);
