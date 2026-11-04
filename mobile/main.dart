@@ -1,3 +1,5 @@
+// ignore_for_file: prefer_interpolation_to_compose_strings
+
 import 'package:flutter/material.dart';
 
 import 'dart:convert';
@@ -123,73 +125,47 @@ class Subtask {
   }
 }
 
-/*
-class SubtaskInfo{
-  
-  String subtaskID = "";
-  String parentTaskId = "";
-  String subtaskName = "";
-  double importance = 0;
-  int estPomodoros = 0;
-  double priorityScore = 0;
-  bool completed = false;
 
-  SubtaskInfo({required this.subtaskID, required this.parentTaskId, required this.subtaskName, required this.estPomodoros});
+class TaskCard extends StatelessWidget {
 
-  factory SubtaskInfo.fromJson(Map<String, dynamic> json) {
-    return SubtaskInfo(
-      subtaskID: json['_id'],
-      parentTaskId: json['parentTaskId'],
-      subtaskName: json['name'],
-      estPomodoros: json['estPomodoros'],
-    );
-  }
+  final Task task;
 
+  const TaskCard({super.key, required this.task});
 
-}
-*/
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        leading: Checkbox(
+          value: task.completed,
+          onChanged: (bool? value) {
+            
+          },
+        ),
 
-/*
-class TaskInfo extends SubtaskInfo {
-  String taskID = "";
-  String taskName = "";
-  double importance = 0;
-  int estPomodoros = 0;
-  double priorityScore = 0;
-  int sortOrder = 0;
-  bool completed = false;
-  
-  List<SubtaskInfo> subtasks = [];
+        title: Text(task.name),
+        subtitle: Text('[Dummy Group]   Confidence' + task.importance.toString() + '/10   Due some time'),
 
-  /*
-  "subtasks": [
-    {
-      "_id": "674100000000000000000002",
-      "parentTaskId": "674100000000000000000001",
-      "name": "Review notes",
-      "importance": 0.5,
-      "estPomodoros": 1,
-      "priorityScore": 0.55,
-      "completed": false
-    }
-  ]
-  */
+        //placeholder
 
-  
-  TaskInfo({required this.taskID, required this.taskName, required this.estPomodoros});
-
-  factory TaskInfo.fromJson(Map<String, dynamic> json) {
-    return TaskInfo(
-      taskID: json['_id'],
-      taskName: json['name'],
-      estPomodoros: json['estPomodoros'],
+        trailing: Wrap(spacing: 10, children: [
+          Icon(Icons.timer),
+          Text(task.estPomodoros.toString() + ' Pomodoros'),
+          IconButton(
+            icon: Icon(Icons.expand_circle_down_outlined), 
+            //placeholder
+            onPressed: () {
+              
+            },
+          ),
+        ]),
+      ),
     );
 
-  }
-  
-}
+  }  
 
-*/
+} 
+  
 
 void main() {
   runApp(
@@ -220,11 +196,25 @@ class HomePage extends StatefulWidget {
 }
 
 class HomePageState extends State<HomePage> {
+
+  //Testing data
+  List<Task> loadedTasks = List.generate(5, (i) => Task(
+      id: 'null',
+      userId: 'null',
+      name: 'Task Test $i',
+      importance: (i).toDouble(),
+      estPomodoros: i,
+      priorityScore: i.toDouble(),
+      sortOrder: i,
+      completed: false,
+      subtasks: [],
+    ));
+
   int currentPageIndex = 0;
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    //final ThemeData theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -266,8 +256,23 @@ class HomePageState extends State<HomePage> {
           ),
         ],
       ),
+
+
       body: <Widget>[
         /// Home page
+        /// 
+        
+        Expanded(
+          child: ListView.builder(
+            itemCount: loadedTasks.length,
+            itemBuilder: (context, index) {
+              final task = loadedTasks[index];
+              return TaskCard(task: task);
+            },
+          ),
+        ),
+
+        /*
         Card(
           shadowColor: Colors.transparent,
           margin: const EdgeInsets.all(8.0),
@@ -277,6 +282,7 @@ class HomePageState extends State<HomePage> {
             ),
           ),
         ),
+        */
 
         /// Notifications page
         Padding(
@@ -288,6 +294,8 @@ class HomePageState extends State<HomePage> {
                 lastDay: DateTime.utc(2066, 11, 2),
                 focusedDay: DateTime.now(),
               ),
+              
+              /*
               Card(
                 child: ListTile(
                   leading: Icon(Icons.notifications_sharp),
@@ -295,6 +303,18 @@ class HomePageState extends State<HomePage> {
                   subtitle: Text(''),
                 ),
               ),
+              */
+
+              Expanded(
+                child: ListView.builder(
+                  itemCount: loadedTasks.length,
+                  itemBuilder: (context, index) {
+                    final task = loadedTasks[index];
+                    return TaskCard(task: task);
+                  },
+                ),
+              ),
+
             ],
           ),
         ),
@@ -324,10 +344,21 @@ class HomePageState extends State<HomePage> {
         ),
 
         /// Groups page
-        const Padding(
+        Padding(
           padding: EdgeInsets.all(8.0),
           child: Column(
             children: <Widget>[
+
+              Expanded(
+                child: ListView.builder(
+                  itemCount: loadedTasks.length,
+                  itemBuilder: (context, index) {
+                    final task = loadedTasks[index];
+                    return TaskCard(task: task);
+                  },
+                ),
+              ),
+              /*
               Card(
                 child: ListTile(
                   leading: Icon(Icons.notifications_sharp),
@@ -342,14 +373,36 @@ class HomePageState extends State<HomePage> {
                   subtitle: Text(''),
                 ),
               ),
+              */
             ],
           ),
         ),
 
-        const Padding(
+        Padding(
           padding: EdgeInsets.all(8.0),
           child: Column(
             children: <Widget>[
+
+              Expanded(
+                child: ListView.builder(
+                  itemCount: loadedTasks.length,
+                  itemBuilder: (context, index) {
+                   
+                    final task = loadedTasks[index];
+
+                    if(task.completed != true){
+
+                      return SizedBox.shrink();
+
+                    } else {
+                      
+                      return TaskCard(task: task);
+                    }
+                  },
+                ),
+              ),
+
+              /*
               Card(
                 child: ListTile(
                   leading: Icon(Icons.notifications_sharp),
@@ -364,12 +417,14 @@ class HomePageState extends State<HomePage> {
                   subtitle: Text(''),
                 ),
               ),
+              */
             ],
           ),
         ),
       ][currentPageIndex],
     );
   }
+
 }
 
 class LoginPage extends StatefulWidget {
@@ -382,6 +437,8 @@ class LoginPage extends StatefulWidget {
 class LoginPageState extends State<LoginPage> {
   String email = "";
   String password = "";
+
+  List<Task> loadedTasks = [];
 
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
