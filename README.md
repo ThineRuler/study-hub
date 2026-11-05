@@ -7,15 +7,71 @@ Base URL when running locally: `http://localhost:5000`
 
 Start the server with `npm run dev` (or `npm start`). Copy `.env.example` to `.env` and set `MONGODB_URI` before starting. The server listens on `PORT` (default `5000`).
 
-Login and registration are not part of this API yet. Until they exist, send the signed-in user's MongoDB `_id` on every route except health:
-
-```
-x-user-id: <user ObjectId>
-```
-
-`middleware/auth.js` is a temporary stand-in. The real login check should still set `req.user.id` so these routes do not need to change.
-
 Every task and group query is limited to that user. A user cannot read or change another user's tasks, groups, or settings.
+
+
+### Nodemailer Setup
+
+First setup the transporter email (GMAIL):
+
+- Go to your Google Account -> Security.
+- Ensure 2-Step Verification is turned on.
+- Search for App Passwords in the search bar.
+- Create a new App Password. 
+
+Copy the generated 16-character code and place altered fields in your .env file:
+
+- `#DOMAIN`
+- `#EMAIL`
+- `#EMAIL_PASSWORD`
+
+### Authentication
+
+`POST /api/auth/sign-up`
+
+```json
+{
+    "name": "test",
+    "email": "test@contact.com",
+    "password": "password"
+}
+```
+Body fields: `name`, `email`, `password`. Signing up will send an email using the transporter email to the destination email used to register. A verification email will be sent and response body holds the verification token.
+
+`POST /api/auth/sign-in`
+
+```json
+{
+    "email": "test@contact.com",
+    "password": "password"
+}
+```
+Body fields: `email`, `password`. Successful sign ins will generate a new token each session. 
+
+`POST /api/auth/sign-out`
+
+No fields necessary. Requires a landing page (WIP)
+
+`POST /api/auth/forgot-password`
+
+```json
+{
+    "email": "test@contact.com",
+}
+```
+Body fields: `email`. Will send a reset password email to destination address. Also generates accompanying reset token.
+Current email does not link to a working reset password page (WIP). Manual resets need a specific call to api. `/api/auth/reset-password`
+
+`POST /api/auth/reset-password`
+
+```json
+{
+    "id": "userID",
+    "token": "user.resetToken",
+    "newPassword": "newpassword"
+}
+```
+Body fields: `user _id`, `resetToken`, `newPassword`. Will change password after applying calls. 
 
 ### Errors
 
