@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-scale: 100%;
+}
+
+html {
+  font-size: var(--font-scale);
+}
+
+/* Accessibility: High Contrast Mode */
+html.high-contrast {
+  --color-high-contrast: #000000;
+  filter: contrast(125%);
+}
+
+html.high-contrast body {
+  background-color: #FFFFFF !important;
+  color: #000000 !important;
+}
+
+html.high-contrast .border-surface-border,
+html.high-contrast .border-slate-200,
+html.high-contrast .border-zinc-200 {
+  border-color: #000000 !important;
+}
+
+/* Accessibility: Dyslexia Friendly Font */
+html.font-dyslexic {
+  font-family: 'OpenDyslexic', 'Comic Sans MS', sans-serif !important;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #D2E0D6;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #B2C7B8;
+}

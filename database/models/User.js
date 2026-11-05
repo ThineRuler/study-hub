@@ -13,6 +13,7 @@ const userSchema = new mongoose.Schema({
   verifyTokenExpires: Date,
   resetToken:   String,
   resetTokenExpires:  Date,
+  resetTokenVerified: { type: Boolean, default: false },
   settings: {
     theme: { type: String, default: 'light' },
     weights: {
