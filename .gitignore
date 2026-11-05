@@ -2,6 +2,11 @@
 /frontend/node_modules/
 /node_modules/
 
+# build outputs & cache
+/frontend/dist/
+dist/
+*.tsbuildinfo
+
 # secrets: never commit these
 .env
 .env.*
