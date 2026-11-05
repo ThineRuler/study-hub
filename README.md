@@ -1,5 +1,5 @@
 # study-hub
-A task managing app design to break down overwhelming tasks. Designed by COP4331 POOSD Group 15
+A task managing app designed to break down overwhelming tasks. Designed by COP4331 POOSD Group 15
 
 ## API
 
@@ -275,7 +275,7 @@ Body fields: `displayName`, `settings.theme`, and `settings.weights.importance`,
 
 ## Frontend
 
-To test the frontend of the web app, change to the frontend directory and start the server.
+To test the frontend of the web app, change to the frontend directory and start the server. Make sure the backend server is running first (the server runninng on port 5000).
 
 ```bash
 cd frontend
