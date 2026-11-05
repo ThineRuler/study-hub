@@ -2,7 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const Group = require('../database/models/Groups');
 const Task = require('../database/models/Tasks');
-const auth = require('../middleware/auth');
+const auth = require('../middleware/verify');
 
 const router = express.Router();
 router.use(auth);
