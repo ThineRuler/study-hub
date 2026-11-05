@@ -1,21 +1,24 @@
 import React, { useState, useEffect } from 'react';
+import { useTasks } from '../context/TaskContext';
 import { Button } from '../components/common/Button';
 import { Play, Pause, RotateCcw, Volume2, VolumeX, CheckCircle, Clock } from 'lucide-react';
 
 export const PomodoroTimerPage: React.FC = () => {
+  const { tasks, completedTasks, groups, toggleTask } = useTasks();
+
   const [mode, setMode] = useState<'work' | 'break'>('work');
   const [secondsLeft, setSecondsLeft] = useState(25 * 60);
   const [isActive, setIsActive] = useState(false);
   const [chimeOn, setChimeOn] = useState(true);
-  const [selectedTaskId, setSelectedTaskId] = useState('1');
+  const [selectedTaskId, setSelectedTaskId] = useState<string>('');
 
-  const taskQueue = [
-    { id: '1', name: 'Read design notes', group: 'Learning', pomodoros: 1, confidence: 7, dueDate: 'Oct 31' },
-    { id: '2', name: 'Clear client inbox', group: 'Work', pomodoros: 2, confidence: 5, dueDate: 'Today' },
-    { id: '3', name: 'Launch portfolio / subtask: Choose featured projects', group: 'Work & Personal', pomodoros: 2, confidence: 8, dueDate: 'Nov 3' },
-  ];
+  const groupMap = new Map(groups.map((g) => [g._id, g]));
 
-  const currentTask = taskQueue.find((t) => t.id === selectedTaskId) || taskQueue[0];
+  const currentTaskId = selectedTaskId || tasks[0]?._id;
+  const currentTask = tasks.find((t) => t._id === currentTaskId) || tasks[0];
+  const currentGroup = currentTask?.groupId ? groupMap.get(currentTask.groupId) : undefined;
+
+  const pomodorosCompleted = completedTasks.reduce((sum, t) => sum + (t.estPomodoros || 1), 0);
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -25,7 +28,6 @@ export const PomodoroTimerPage: React.FC = () => {
       }, 1000);
     } else if (secondsLeft === 0) {
       setIsActive(false);
-      // Play gentle chime simulation
       if (chimeOn) {
         try {
           const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -33,13 +35,13 @@ export const PomodoroTimerPage: React.FC = () => {
           const gain = audioCtx.createGain();
           osc.connect(gain);
           gain.connect(audioCtx.destination);
-          osc.frequency.value = mode === 'work' ? 587.33 : 880; // D5 / A5
+          osc.frequency.value = mode === 'work' ? 587.33 : 880;
           gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
           gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.2);
           osc.start();
           osc.stop(audioCtx.currentTime + 1.2);
         } catch {
-          // AudioCtx restricted or unsupported
+          // AudioCtx not allowed
         }
       }
     }
@@ -79,7 +81,7 @@ export const PomodoroTimerPage: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Main Interactive Clock Panel (Left 7 Cols) */}
+        {/* Main Interactive Clock Panel */}
         <div className="lg:col-span-7 rounded-3xl border border-surface-border bg-white p-8 sm:p-10 shadow-lg text-center space-y-6">
           {/* Mode Switcher */}
           <div className="inline-flex rounded-xl bg-surface-subtle p-1 border border-surface-border">
@@ -106,12 +108,16 @@ export const PomodoroTimerPage: React.FC = () => {
           {/* Active Task Tag */}
           <div className="space-y-1">
             <span className="text-xs font-bold text-sage-700 uppercase tracking-wider">
-              {currentTask.group}
+              {currentGroup?.name || 'General Focus'}
             </span>
-            <h3 className="text-lg font-bold text-content-primary">{currentTask.name}</h3>
-            <p className="text-xs text-content-muted">
-              Session 1 of {currentTask.pomodoros} estimated · Confidence {currentTask.confidence}/10 · Due {currentTask.dueDate}
-            </p>
+            <h3 className="text-lg font-bold text-content-primary">
+              {currentTask?.name || 'No task selected'}
+            </h3>
+            {currentTask && (
+              <p className="text-xs text-content-muted">
+                {currentTask.estPomodoros || 1} Pomodoro session estimated
+              </p>
+            )}
           </div>
 
           {/* Clock Display */}
@@ -151,53 +157,62 @@ export const PomodoroTimerPage: React.FC = () => {
               {chimeOn ? <Volume2 className="w-4 h-4 text-sage-600" /> : <VolumeX className="w-4 h-4" />}
               <span>Chime {chimeOn ? 'on' : 'muted'} (gentle bell at end)</span>
             </button>
-            <span>Today: 3 / 8 counted</span>
+            <span>Today: {pomodorosCompleted} / 8 counted</span>
           </div>
         </div>
 
-        {/* Task Queue Selector (Right 5 Cols) */}
+        {/* Task Queue Selector */}
         <div className="lg:col-span-5 rounded-3xl border border-surface-border bg-white p-6 shadow-xs space-y-4">
-          <div>
-            <h4 className="text-sm font-bold text-content-primary">Today's queue</h4>
-            <p className="text-xs text-content-secondary mt-0.5">
-              Select a task to focus on. Sessions will automatically count toward it.
-            </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="text-sm font-bold text-content-primary">Today's queue</h4>
+              <p className="text-xs text-content-secondary mt-0.5">
+                Select a task to focus on.
+              </p>
+            </div>
+            <span className="text-xs font-semibold text-sage-700">{tasks.length} queued</span>
           </div>
 
-          <div className="space-y-2">
-            {taskQueue.map((t) => {
-              const isSelected = t.id === selectedTaskId;
-              return (
-                <div
-                  key={t.id}
-                  onClick={() => setSelectedTaskId(t.id)}
-                  className={`
-                    p-3.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between
-                    ${
-                      isSelected
-                        ? 'border-sage-600 bg-sage-50/80 ring-2 ring-sage-600/20'
-                        : 'border-surface-border bg-white hover:border-sage-300'
-                    }
-                  `}
-                >
-                  <div>
-                    <p className="text-xs font-bold text-content-primary">{t.name}</p>
-                    <div className="flex items-center gap-2 text-[11px] text-content-muted mt-0.5">
-                      <span className="font-semibold text-sage-800">{t.group}</span>
-                      <span>·</span>
-                      <span>Due {t.dueDate}</span>
+          {tasks.length === 0 ? (
+            <div className="p-8 text-center text-xs text-content-muted border border-dashed border-surface-border rounded-xl">
+              No active tasks right now. Click "Create Task" in the sidebar to add one.
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+              {tasks.map((t) => {
+                const isSelected = t._id === currentTaskId;
+                const grp = t.groupId ? groupMap.get(t.groupId) : undefined;
+                return (
+                  <div
+                    key={t._id}
+                    onClick={() => setSelectedTaskId(t._id)}
+                    className={`
+                      p-3.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between
+                      ${
+                        isSelected
+                          ? 'border-sage-600 bg-sage-50/80 ring-2 ring-sage-600/20'
+                          : 'border-surface-border bg-white hover:border-sage-300'
+                      }
+                    `}
+                  >
+                    <div>
+                      <p className="text-xs font-bold text-content-primary">{t.name}</p>
+                      <div className="flex items-center gap-2 text-[11px] text-content-muted mt-0.5">
+                        {grp && <span className="font-semibold" style={{ color: grp.color }}>{grp.name}</span>}
+                        {t.dueDate && <span>· Due {new Date(t.dueDate).toLocaleDateString()}</span>}
+                      </div>
                     </div>
+                    <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-surface-subtle border border-surface-border">
+                      {t.estPomodoros || 1} ◷
+                    </span>
                   </div>
-                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-surface-subtle border border-surface-border">
-                    {t.pomodoros} ◷
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
 
           <div className="p-3 rounded-xl bg-surface-subtle border border-surface-border text-xs text-content-muted leading-relaxed">
-            Checking a task complete counts its full estimate. Timer sessions are credited separately without duplicate addition.
+            Timer sessions count toward your active daily capacity. Checking a task complete credits its full estimate.
           </div>
         </div>
       </div>

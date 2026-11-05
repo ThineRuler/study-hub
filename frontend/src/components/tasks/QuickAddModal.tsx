@@ -3,50 +3,52 @@ import { Modal } from '../common/Modal';
 import { Input } from '../common/Input';
 import { Button } from '../common/Button';
 import { ConfidenceSlider } from '../common/ConfidenceSlider';
-import { Calendar, Tag, Clock } from 'lucide-react';
-import { Task } from '../../types';
+import { useTasks } from '../../context/TaskContext';
 
 interface QuickAddModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddTask: (task: Partial<Task>) => void;
-  availableGroups?: string[];
 }
 
 export const QuickAddModal: React.FC<QuickAddModalProps> = ({
   isOpen,
   onClose,
-  onAddTask,
-  availableGroups = ['Work', 'Personal', 'Learning'],
 }) => {
+  const { groups, createTask } = useTasks();
   const [name, setName] = useState('');
-  const [selectedGroups, setSelectedGroups] = useState<string[]>(['Work']);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>('');
   const [estPomodoros, setEstPomodoros] = useState(1);
   const [confidence, setConfidence] = useState(8);
   const [dueDate, setDueDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
-  const toggleGroup = (grp: string) => {
-    setSelectedGroups((prev) =>
-      prev.includes(grp) ? prev.filter((g) => g !== grp) : [...prev, grp]
-    );
-  };
+  // Default to first group if not selected
+  const activeGroupId = selectedGroupId || (groups[0]?._id ?? '');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
 
-    onAddTask({
-      id: `task_${Date.now()}`,
-      name: name.trim(),
-      groupIds: selectedGroups,
-      estPomodoros,
-      confidence,
-      dueDate,
-      completed: false,
-    });
+    setIsSubmitting(true);
+    setError('');
 
-    setName('');
-    onClose();
+    try {
+      await createTask({
+        name: name.trim(),
+        groupId: activeGroupId || undefined,
+        estPomodoros,
+        importance: Math.min(1, Math.max(0, confidence / 10)),
+        dueDate,
+      });
+
+      setName('');
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'Failed to create task');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -58,9 +60,14 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
       maxWidth="md"
     >
       <form onSubmit={handleSubmit} className="space-y-5">
+        {error && (
+          <div className="p-3 rounded-lg bg-red-50 text-xs text-red-700 font-medium border border-red-200">
+            {error}
+          </div>
+        )}
+
         <Input
           label="Task Name"
-          placeholder="e.g. Clear client inbox or Reply to feedback"
           required
           autoFocus
           value={name}
@@ -68,33 +75,35 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
         />
 
         {/* Groups selection */}
-        <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-content-secondary mb-2">
-            Assign Groups
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {availableGroups.map((grp) => {
-              const active = selectedGroups.includes(grp);
-              return (
-                <button
-                  key={grp}
-                  type="button"
-                  onClick={() => toggleGroup(grp)}
-                  className={`
-                    px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border
-                    ${
-                      active
-                        ? 'bg-sage-600 text-white border-sage-600 shadow-xs'
-                        : 'bg-white border-surface-border text-content-secondary hover:border-sage-300'
-                    }
-                  `}
-                >
-                  {grp}
-                </button>
-              );
-            })}
+        {groups.length > 0 && (
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-content-secondary mb-2">
+              Assign Group
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {groups.map((grp) => {
+                const active = activeGroupId === grp._id;
+                return (
+                  <button
+                    key={grp._id}
+                    type="button"
+                    onClick={() => setSelectedGroupId(grp._id)}
+                    className={`
+                      px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border
+                      ${
+                        active
+                          ? 'bg-sage-600 text-white border-sage-600 shadow-xs'
+                          : 'bg-white border-surface-border text-content-secondary hover:border-sage-300'
+                      }
+                    `}
+                  >
+                    {grp.name}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Pomodoros and Due Date row */}
         <div className="grid grid-cols-2 gap-4">
@@ -147,7 +156,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
           <Button variant="ghost" size="md" type="button" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="primary" size="md" type="submit">
+          <Button variant="primary" size="md" type="submit" isLoading={isSubmitting}>
             Add Task
           </Button>
         </div>

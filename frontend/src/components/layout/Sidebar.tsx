@@ -1,20 +1,22 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useTasks } from '../../context/TaskContext';
 import { CreateTaskMenu } from '../tasks/CreateTaskMenu';
 import { AccessibilityModal } from '../common/AccessibilityModal';
+import { Modal } from '../common/Modal';
+import { Input } from '../common/Input';
+import { Button } from '../common/Button';
 import {
   SunMedium,
   CalendarDays,
   Timer,
   Calendar,
   CheckCircle2,
-  Folder,
   Plus,
   Settings,
   LogOut,
   Sliders,
-  User as UserIcon,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -24,23 +26,38 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
   const location = useLocation();
   const { user, logout } = useAuth();
+  const { tasks, completedTasks, groups, createGroup } = useTasks();
+
   const [isA11yOpen, setIsA11yOpen] = useState(false);
+  const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupColor, setNewGroupColor] = useState('#10B981');
+  const [isSubmittingGroup, setIsSubmittingGroup] = useState(false);
 
   const navItems = [
-    { path: '/dashboard', label: 'Daily Digest', icon: SunMedium, badge: 3 },
+    { path: '/dashboard', label: 'Daily Digest', icon: SunMedium, badge: tasks.length || undefined },
     { path: '/next-7-days', label: 'Next 7 Days', icon: CalendarDays },
     { path: '/timer', label: 'Pomodoro Timer', icon: Timer },
     { path: '/calendar', label: 'Calendar', icon: Calendar },
-    { path: '/completed', label: 'Completed', icon: CheckCircle2 },
-  ];
-
-  const groups = [
-    { id: 'work', name: 'Work', count: 7, color: 'bg-emerald-500' },
-    { id: 'personal', name: 'Personal', count: 7, color: 'bg-amber-500' },
-    { id: 'learning', name: 'Learning', count: 2, color: 'bg-blue-500' },
+    { path: '/completed', label: 'Completed', icon: CheckCircle2, badge: completedTasks.length || undefined },
   ];
 
   const isActive = (path: string) => location.pathname === path;
+
+  const handleCreateGroup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newGroupName.trim()) return;
+    setIsSubmittingGroup(true);
+    try {
+      await createGroup(newGroupName.trim(), newGroupColor);
+      setNewGroupName('');
+      setIsCreateGroupOpen(false);
+    } catch (err: any) {
+      alert(err.message || 'Failed to create group');
+    } finally {
+      setIsSubmittingGroup(false);
+    }
+  };
 
   return (
     <>
@@ -49,10 +66,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
           {/* Workspace Title */}
           <div className="px-2 pt-2">
             <p className="text-[10px] font-extrabold tracking-widest uppercase text-sage-700">
-              {user?.displayName ? `${user.displayName.toUpperCase()}'S` : "ALEX'S"}
+              {user?.displayName ? `${user.displayName.toUpperCase()}'S` : 'PERSONAL'}
             </p>
             <h2 className="text-sm font-bold text-content-primary tracking-tight">
-              PERSONAL WORKSPACE
+              WORKSPACE
             </h2>
           </div>
 
@@ -84,7 +101,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
                     <Icon className={`w-4 h-4 ${active ? 'text-sage-700' : 'text-content-muted'}`} />
                     <span>{item.label}</span>
                   </div>
-                  {item.badge !== undefined && (
+                  {item.badge !== undefined && item.badge > 0 && (
                     <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-sage-200 text-sage-800">
                       {item.badge}
                     </span>
@@ -111,27 +128,30 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
             <div className="space-y-1">
               {groups.map((grp) => (
                 <Link
-                  key={grp.id}
-                  to={`/groups/${grp.id}`}
+                  key={grp._id}
+                  to={`/groups/${grp._id}`}
                   onClick={onCloseMobile}
                   className="flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium text-content-secondary hover:text-content-primary hover:bg-surface-subtle transition-colors"
                 >
                   <div className="flex items-center gap-2.5">
-                    <span className={`w-2 h-2 rounded-full ${grp.color}`} />
-                    <span>{grp.name}</span>
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: grp.color || '#10B981' }}
+                    />
+                    <span className="truncate max-w-[120px]">{grp.name}</span>
                   </div>
-                  <span className="text-xs font-semibold text-content-muted">{grp.count}</span>
+                  <span className="text-xs font-semibold text-content-muted">{grp.taskCount || 0}</span>
                 </Link>
               ))}
 
-              <Link
-                to="/groups"
-                onClick={onCloseMobile}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-sage-700 hover:text-sage-800 hover:bg-sage-50 transition-colors"
+              <button
+                type="button"
+                onClick={() => setIsCreateGroupOpen(true)}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-sage-700 hover:text-sage-800 hover:bg-sage-50 transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Create Group</span>
-              </Link>
+              </button>
             </div>
           </div>
         </div>
@@ -174,7 +194,55 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
         </div>
       </aside>
 
+      {/* Accessibility Modal */}
       <AccessibilityModal isOpen={isA11yOpen} onClose={() => setIsA11yOpen(false)} />
+
+      {/* Create Group Modal */}
+      <Modal
+        isOpen={isCreateGroupOpen}
+        onClose={() => setIsCreateGroupOpen(false)}
+        title="Create New Group"
+        subtitle="Add a category to organize your projects and daily work."
+        maxWidth="sm"
+      >
+        <form onSubmit={handleCreateGroup} className="space-y-4">
+          <Input
+            label="Group Name"
+            required
+            autoFocus
+            value={newGroupName}
+            onChange={(e) => setNewGroupName(e.target.value)}
+          />
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-content-secondary mb-2">
+              Color Tag
+            </label>
+            <div className="flex gap-2">
+              {['#10B981', '#F59E0B', '#3B82F6', '#8B5CF6', '#EC4899', '#6B7280'].map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  onClick={() => setNewGroupColor(color)}
+                  className={`w-7 h-7 rounded-full border-2 transition-transform ${
+                    newGroupColor === color ? 'scale-110 border-content-primary' : 'border-transparent'
+                  }`}
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-surface-border">
+            <Button variant="ghost" size="sm" type="button" onClick={() => setIsCreateGroupOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="sm" type="submit" isLoading={isSubmittingGroup}>
+              Create Group
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </>
   );
 };

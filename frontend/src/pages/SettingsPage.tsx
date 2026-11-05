@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useAccessibility } from '../context/AccessibilityContext';
 import { Button } from '../components/common/Button';
@@ -6,7 +6,7 @@ import { Input } from '../components/common/Input';
 import { Sliders, Bell, User, Eye, Type, Sparkles, Check, RotateCcw } from 'lucide-react';
 
 export const SettingsPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const { settings: a11y, updateSettings: updateA11y, resetSettings: resetA11y } = useAccessibility();
 
   const [activeTab, setActiveTab] = useState<'scheduling' | 'algorithm' | 'notifications' | 'accessibility'>('scheduling');
@@ -29,7 +29,76 @@ export const SettingsPage: React.FC = () => {
   const [emailDigestTime, setEmailDigestTime] = useState('08:00');
 
   // Account State
-  const [displayName, setDisplayName] = useState(user?.displayName || 'Alex Morgan');
+  const [displayName, setDisplayName] = useState(user?.displayName || '');
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (user?.displayName) {
+      setDisplayName(user.displayName);
+    }
+    const weights = (user?.settings as any)?.weights;
+    if (weights) {
+      if (typeof weights.importance === 'number') setConfidenceWeight(weights.importance);
+      if (typeof weights.dueDate === 'number') setDueDateWeight(weights.dueDate);
+      if (typeof weights.time === 'number') setPomodorosWeight(weights.time);
+    }
+  }, [user]);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const token = localStorage.getItem('studyhub_jwt_token');
+      if (token) {
+        const res = await fetch('/api/users/me', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            displayName: displayName.trim(),
+            settings: {
+              weights: {
+                importance: Math.min(1, Math.max(0, confidenceWeight)),
+                dueDate: Math.min(1, Math.max(0, dueDateWeight)),
+                time: Math.min(1, Math.max(0, pomodorosWeight)),
+              },
+            },
+          }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || 'Failed to save settings');
+        }
+
+        const updatedData = await res.json();
+        updateUser({
+          displayName: updatedData.displayName || displayName.trim(),
+          settings: updatedData.settings || user?.settings,
+        });
+      }
+      alert('Settings saved successfully!');
+    } catch (err: any) {
+      alert(err.message || 'Failed to save settings');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleResetDefaults = () => {
+    setDailyCap(8);
+    setTaskCap(4);
+    workDuration !== 25 && setWorkDuration(25);
+    breakDuration !== 5 && setBreakDuration(5);
+    setChimeEnabled(true);
+    setInvertConfidence(true);
+    setConfidenceWeight(1.0);
+    setPomodorosWeight(1.0);
+    setDueDateWeight(1.0);
+    resetA11y();
+    alert('Defaults restored');
+  };
 
   const tabs = [
     { id: 'scheduling', label: 'Scheduling & Timer' },
@@ -181,16 +250,71 @@ export const SettingsPage: React.FC = () => {
               </div>
             </label>
 
+            {/* Weight Sliders */}
+            <div className="space-y-4 pt-3 border-t border-surface-border">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-content-primary">
+                Algorithm Factor Weights
+              </h4>
+
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1 font-semibold">
+                  <span className="text-content-secondary">Confidence / Importance Weight</span>
+                  <span className="text-sage-800 font-mono font-bold">{confidenceWeight.toFixed(2)}x</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={confidenceWeight}
+                  onChange={(e) => setConfidenceWeight(Number(e.target.value))}
+                  className="w-full accent-sage-600"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1 font-semibold">
+                  <span className="text-content-secondary">Pomodoros / Duration Weight</span>
+                  <span className="text-sage-800 font-mono font-bold">{pomodorosWeight.toFixed(2)}x</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={pomodorosWeight}
+                  onChange={(e) => setPomodorosWeight(Number(e.target.value))}
+                  className="w-full accent-sage-600"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1 font-semibold">
+                  <span className="text-content-secondary">Due Date Urgency Weight</span>
+                  <span className="text-sage-800 font-mono font-bold">{dueDateWeight.toFixed(2)}x</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={dueDateWeight}
+                  onChange={(e) => setDueDateWeight(Number(e.target.value))}
+                  className="w-full accent-sage-600"
+                />
+              </div>
+            </div>
+
             {/* Live illustrative preview */}
             <div className="p-4 rounded-2xl border border-sage-200 bg-sage-50/70 space-y-2">
               <p className="text-xs font-bold text-sage-800 uppercase tracking-wider">
                 Live Illustrative Score Preview
               </p>
               <p className="text-xs text-content-primary font-medium">
-                Choose featured projects · Due in 4 days · Confidence 8/10 · 2 Pomodoros
+                Example Task · Due in 4 days · Confidence 8/10 · 2 Pomodoros
               </p>
               <div className="font-mono text-xs font-bold text-sage-900 bg-white p-2.5 rounded-lg border border-sage-200">
-                (11 - 8) + 2 + 4 = 9 score
+                {invertConfidence ? `(11 - 8) × ${confidenceWeight.toFixed(2)}` : `8 × ${confidenceWeight.toFixed(2)}`} + (2 × {pomodorosWeight.toFixed(2)}) + (4 × {dueDateWeight.toFixed(2)}) = {((invertConfidence ? 3 : 8) * confidenceWeight + 2 * pomodorosWeight + 4 * dueDateWeight).toFixed(1)} score
               </div>
             </div>
           </div>
@@ -241,7 +365,7 @@ export const SettingsPage: React.FC = () => {
             <Input
               label="Email address"
               disabled
-              value={user?.email || 'alex.morgan@example.com'}
+              value={user?.email || ''}
               helperText="Verified address"
             />
           </div>
@@ -331,7 +455,7 @@ export const SettingsPage: React.FC = () => {
                 Live Reading Preview · {a11y.fontScale}%
               </p>
               <p className="text-sm font-medium text-content-primary">
-                A little forward, Alex. You don't have to finish everything today. Start with one clear, manageable step.
+                A little forward{displayName ? `, ${displayName.split(' ')[0]}` : ''}. You don't have to finish everything today. Start with one clear, manageable step.
               </p>
             </div>
           </div>
@@ -340,11 +464,11 @@ export const SettingsPage: React.FC = () => {
 
       {/* Save bar */}
       <div className="flex items-center justify-between pt-4 border-t border-surface-border">
-        <Button variant="ghost" size="sm" onClick={() => alert('Defaults restored')}>
+        <Button variant="ghost" size="sm" onClick={handleResetDefaults}>
           <RotateCcw className="w-3.5 h-3.5 mr-1" />
           Reset Defaults
         </Button>
-        <Button variant="primary" size="md" onClick={() => alert('Settings saved successfully!')}>
+        <Button variant="primary" size="md" isLoading={isSaving} onClick={handleSave}>
           Save changes
         </Button>
       </div>

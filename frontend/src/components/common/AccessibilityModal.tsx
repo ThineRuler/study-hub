@@ -113,7 +113,7 @@ export const AccessibilityModal: React.FC<AccessibilityModalProps> = ({ isOpen, 
             Live Preview · {settings.fontScale}%
           </p>
           <p className="text-sm font-medium text-content-primary">
-            "A little forward, Alex. You don't have to finish everything today. Start with one clear, manageable step."
+            "A little forward. You don't have to finish everything today. Start with one clear, manageable step."
           </p>
         </div>
 

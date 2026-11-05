@@ -3,21 +3,23 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
-import { User, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { User, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 export const SignupPage: React.FC = () => {
   const navigate = useNavigate();
   const { signup } = useAuth();
 
-  const [displayName, setDisplayName] = useState('Alex Morgan');
-  const [email, setEmail] = useState('alex.morgan@example.com');
-  const [password, setPassword] = useState('••••••••••••');
+  const [displayName, setDisplayName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+
     if (!displayName.trim()) {
       setError('Please provide a display name');
       return;
@@ -32,11 +34,15 @@ export const SignupPage: React.FC = () => {
     }
 
     setIsLoading(true);
-    setTimeout(() => {
-      signup(displayName, email);
+
+    try {
+      await signup(displayName.trim(), email.trim(), password);
+      navigate(`/verify-email?email=${encodeURIComponent(email.trim())}`);
+    } catch (err: any) {
+      setError(err.message || 'Failed to create account');
+    } finally {
       setIsLoading(false);
-      navigate(`/verify-email?email=${encodeURIComponent(email)}`);
-    }, 300);
+    }
   };
 
   return (
@@ -52,8 +58,9 @@ export const SignupPage: React.FC = () => {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
-          <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 font-medium">
-            {error}
+          <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 font-medium flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+            <span>{error}</span>
           </div>
         )}
 
@@ -63,7 +70,6 @@ export const SignupPage: React.FC = () => {
           required
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
-          placeholder="Alex Morgan"
           leftIcon={<User className="w-4 h-4" />}
         />
 
@@ -73,7 +79,6 @@ export const SignupPage: React.FC = () => {
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="alex.morgan@example.com"
           leftIcon={<Mail className="w-4 h-4" />}
         />
 
@@ -84,7 +89,6 @@ export const SignupPage: React.FC = () => {
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="At least 8 characters"
             leftIcon={<Lock className="w-4 h-4" />}
             rightIcon={
               <button
@@ -99,9 +103,9 @@ export const SignupPage: React.FC = () => {
           />
         </div>
 
-        <div className="p-3 rounded-xl bg-sage-50 border border-sage-200">
-          <p className="text-xs text-sage-800">
-            Next, we'll email a code to confirm your address.
+        <div className="p-3.5 rounded-xl bg-sage-50 border border-sage-200">
+          <p className="text-xs text-sage-800 leading-relaxed font-medium">
+            Next, we'll email a verification link to confirm your address.
           </p>
         </div>
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AccessibilityProvider } from './context/AccessibilityContext';
 import { AuthProvider } from './context/AuthContext';
+import { TaskProvider } from './context/TaskContext';
 
 // Layouts
 import { PublicLayout } from './components/layout/PublicLayout';
@@ -33,7 +34,8 @@ export const App: React.FC = () => {
   return (
     <AccessibilityProvider>
       <AuthProvider>
-        <BrowserRouter>
+        <TaskProvider>
+          <BrowserRouter>
           <Routes>
             {/* Public Pages */}
             <Route element={<PublicLayout />}>
@@ -48,6 +50,7 @@ export const App: React.FC = () => {
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/verify-email" element={<VerifyEmailPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password" element={<ForgotPasswordPage />} />
             </Route>
 
             {/* Authenticated Workspace Pages */}
@@ -66,7 +69,8 @@ export const App: React.FC = () => {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
-      </AuthProvider>
+      </TaskProvider>
+    </AuthProvider>
     </AccessibilityProvider>
   );
 };

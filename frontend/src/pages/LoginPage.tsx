@@ -1,33 +1,53 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
-import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login } = useAuth();
 
-  const [email, setEmail] = useState('alex.morgan@example.com');
-  const [password, setPassword] = useState('••••••••••••');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [isNotVerified, setIsNotVerified] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const resetSuccess = searchParams.get('resetSuccess');
+  const verifiedSuccess = searchParams.get('verified');
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) {
+    setError('');
+    setIsNotVerified(false);
+
+    if (!email.trim()) {
       setError('Please enter your email address');
       return;
     }
+    if (!password) {
+      setError('Please enter your password');
+      return;
+    }
+
     setIsLoading(true);
-    // Simulate instantaneous client-side login per user request
-    setTimeout(() => {
-      login(email);
-      setIsLoading(false);
+
+    try {
+      await login(email.trim(), password);
       navigate('/dashboard');
-    }, 300);
+    } catch (err: any) {
+      const msg = err.message || 'Failed to sign in';
+      setError(msg);
+      if (err.status === 403 || msg.toLowerCase().includes('not verified')) {
+        setIsNotVerified(true);
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -41,10 +61,35 @@ export const LoginPage: React.FC = () => {
         </p>
       </div>
 
+      {verifiedSuccess && (
+        <div className="mb-4 p-3.5 rounded-xl bg-sage-50 border border-sage-200 text-xs text-sage-900 font-medium flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-sage-700 shrink-0" />
+          <span>Email successfully verified! You can now log in below.</span>
+        </div>
+      )}
+
+      {resetSuccess && (
+        <div className="mb-4 p-3.5 rounded-xl bg-sage-50 border border-sage-200 text-xs text-sage-900 font-medium flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-sage-700 shrink-0" />
+          <span>Password reset successful! You can now log in with your new password.</span>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
-          <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 font-medium">
-            {error}
+          <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 font-medium flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p>{error}</p>
+              {isNotVerified && (
+                <Link
+                  to={`/verify-email?email=${encodeURIComponent(email)}`}
+                  className="font-bold underline block text-red-800"
+                >
+                  Click here to verify your email address →
+                </Link>
+              )}
+            </div>
           </div>
         )}
 
@@ -54,7 +99,6 @@ export const LoginPage: React.FC = () => {
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="alex.morgan@example.com"
           leftIcon={<Mail className="w-4 h-4" />}
         />
 
@@ -65,7 +109,6 @@ export const LoginPage: React.FC = () => {
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter your password"
             leftIcon={<Lock className="w-4 h-4" />}
             rightIcon={
               <button

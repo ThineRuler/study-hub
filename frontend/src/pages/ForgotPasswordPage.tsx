@@ -1,55 +1,129 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
-import { SixDigitInput } from '../components/common/SixDigitInput';
-import { Mail, Lock, ArrowLeft, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { authApi } from '../api/authApi';
+import { Mail, Lock, ArrowLeft, Eye, EyeOff, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 
 export const ForgotPasswordPage: React.FC = () => {
   const navigate = useNavigate();
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [searchParams] = useSearchParams();
 
-  const [email, setEmail] = useState('alex.morgan@example.com');
-  const [code, setCode] = useState('246810');
+  const urlToken = searchParams.get('token');
+  const urlId = searchParams.get('id');
+
+  // Steps: 'request' -> 'waiting' -> 'reset'
+  const [step, setStep] = useState<'request' | 'waiting' | 'reset'>(urlToken ? 'reset' : 'request');
+
+  const [email, setEmail] = useState('');
+  const [userId, setUserId] = useState(urlId || '');
+  const [token, setToken] = useState(urlToken || '');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [infoMessage, setInfoMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Step 1: Request Code
-  const handleRequestCode = (e: React.FormEvent) => {
+  // 30s resend timer
+  const [countdown, setCountdown] = useState(30);
+  const [isResending, setIsResending] = useState(false);
+  const [resendStatus, setResendStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (urlToken) {
+      setToken(urlToken);
+      setStep('reset');
+    }
+    if (urlId) {
+      setUserId(urlId);
+    }
+  }, [urlToken, urlId]);
+
+  // Countdown timer for resend link
+  useEffect(() => {
+    if (step !== 'waiting' || countdown <= 0) return;
+    const timer = setInterval(() => {
+      setCountdown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [step, countdown]);
+
+  // Polling for email link click while in 'waiting' step
+  useEffect(() => {
+    if (step !== 'waiting' || !email) return;
+
+    let isMounted = true;
+    const interval = setInterval(async () => {
+      try {
+        const res = await authApi.checkResetStatus(email);
+        if (res.isVerified && isMounted) {
+          if (res.token) setToken(res.token);
+          if (res.id) setUserId(res.id);
+          clearInterval(interval);
+          setStep('reset');
+        }
+      } catch {
+        // Polling retry
+      }
+    }, 2000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [step, email]);
+
+  // Step 1: Submit Request Email
+  const handleRequestReset = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !email.includes('@')) {
       setError('Please provide a valid email address');
       return;
     }
+
     setIsLoading(true);
     setError('');
-    setTimeout(() => {
+
+    try {
+      const res = await authApi.forgotPassword(email.trim());
+      if (res.body?.user?._id) {
+        setUserId(res.body.user._id);
+      }
+      setCountdown(30);
+      setStep('waiting');
+    } catch (err: any) {
+      setError(err.message || 'Failed to request password reset');
+    } finally {
       setIsLoading(false);
-      setStep(2);
-    }, 400);
+    }
   };
 
-  // Step 2: Verify Code
-  const handleVerifyCode = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (code.length < 6) {
-      setError('Please enter all 6 digits of the code');
+  // Resend reset link
+  const handleResend = async () => {
+    if (countdown > 0 || isResending || !email) return;
+    setIsResending(true);
+    setResendStatus(null);
+    try {
+      await authApi.forgotPassword(email.trim());
+      setResendStatus('New reset link sent! Check your inbox.');
+      setCountdown(30);
+    } catch (err: any) {
+      setResendStatus(err.message || 'Failed to resend link');
+    } finally {
+      setIsResending(false);
+    }
+  };
+
+  // Step 3: Apply New Password
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (!token.trim()) {
+      setError('Missing reset token. Please click the reset link in your email.');
       return;
     }
-    setIsLoading(true);
-    setError('');
-    setTimeout(() => {
-      setIsLoading(false);
-      setStep(3);
-    }, 400);
-  };
-
-  // Step 3: Reset Password
-  const handleResetPassword = (e: React.FormEvent) => {
-    e.preventDefault();
     if (newPassword.length < 8) {
       setError('New password must be at least 8 characters');
       return;
@@ -60,93 +134,146 @@ export const ForgotPasswordPage: React.FC = () => {
     }
 
     setIsLoading(true);
-    setError('');
-    setTimeout(() => {
-      setIsLoading(false);
+
+    try {
+      await authApi.resetPassword({
+        id: userId.trim(),
+        token: token.trim(),
+        newPassword,
+      });
       navigate('/login?resetSuccess=true');
-    }, 400);
+    } catch (err: any) {
+      setError(err.message || 'Password reset failed. Link may be expired.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="w-full max-w-sm mx-auto">
-      {/* Step Indicator Header */}
+      {/* Header */}
       <div className="mb-6">
         <div className="inline-block px-2.5 py-1 rounded-md bg-sage-100 text-sage-800 text-[11px] font-bold tracking-wider uppercase mb-3">
-          {step === 1 && '1 REQUEST A CODE'}
-          {step === 2 && '2 VERIFY YOUR CODE'}
-          {step === 3 && '3 RESET YOUR PASSWORD'}
+          {step === 'request' && 'RESET PASSWORD'}
+          {step === 'waiting' && 'CONFIRMATION PENDING'}
+          {step === 'reset' && 'CHOOSE NEW PASSWORD'}
         </div>
 
         <h1 className="text-2xl font-bold text-content-primary tracking-tight">
-          {step === 1 && 'Verify your email.'}
-          {step === 2 && 'Verify your code.'}
-          {step === 3 && 'Reset your password.'}
+          {step === 'request' && 'Forgot password?'}
+          {step === 'waiting' && 'Check your inbox'}
+          {step === 'reset' && 'Set new password'}
         </h1>
 
-        <p className="mt-1 text-sm text-content-secondary">
-          {step === 1 && "We'll send a verification code so you get your account back."}
-          {step === 2 && 'Enter the 6 digit code we sent to your email.'}
-          {step === 3 && 'Choose a new password and confirm it.'}
+        <p className="mt-1 text-sm text-content-secondary leading-relaxed">
+          {step === 'request' && "Enter your email address and we'll send a link to reset your password."}
+          {step === 'waiting' && (
+            <>
+              We sent a password reset link to{' '}
+              <strong className="text-content-primary font-semibold">{email}</strong>. Once you click the link in your email, you will be able to set your new password.
+            </>
+          )}
+          {step === 'reset' && 'Create a strong, unique password for your account.'}
         </p>
       </div>
 
-      {error && (
-        <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 font-medium">
-          {error}
+      {infoMessage && (
+        <div className="mb-4 p-3.5 rounded-xl bg-sage-50 border border-sage-200 text-xs text-sage-900 font-medium flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-sage-700 shrink-0" />
+          <span>{infoMessage}</span>
         </div>
       )}
 
-      {/* Step 1: Request Code Form */}
-      {step === 1 && (
-        <form onSubmit={handleRequestCode} className="space-y-4">
+      {error && (
+        <div className="mb-4 p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 font-medium flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* Step 1: Request Email Form */}
+      {step === 'request' && (
+        <form onSubmit={handleRequestReset} className="space-y-4">
           <Input
             label="Email address"
             type="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="alex.morgan@example.com"
             leftIcon={<Mail className="w-4 h-4" />}
           />
 
           <Button type="submit" fullWidth size="lg" isLoading={isLoading} className="mt-2">
-            Send verification code
+            Send reset link
           </Button>
         </form>
       )}
 
-      {/* Step 2: Verify Code Form */}
-      {step === 2 && (
-        <div className="space-y-6">
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-content-secondary text-center mb-3">
-              Verification code
-            </label>
-            <SixDigitInput
-              value={code}
-              onChange={(val) => {
-                setCode(val);
-                setError('');
-              }}
-              onComplete={() => handleVerifyCode()}
-            />
+      {/* Step 2: Waiting for link click */}
+      {step === 'waiting' && (
+        <div className="space-y-5">
+          <div className="p-4 rounded-2xl bg-sage-50/70 border border-sage-200/90 flex items-center gap-3">
+            <Loader2 className="w-5 h-5 text-sage-600 animate-spin shrink-0" />
+            <div>
+              <p className="text-xs font-bold text-sage-900">
+                Waiting for reset link confirmation...
+              </p>
+              <p className="text-[11px] text-sage-700 mt-0.5">
+                Click the link in your email on any tab or device.
+              </p>
+            </div>
           </div>
 
-          <Button
-            type="button"
-            fullWidth
-            size="lg"
-            isLoading={isLoading}
-            onClick={() => handleVerifyCode()}
-            className="mt-2"
-          >
-            Verify code
-          </Button>
+          <div className="space-y-2">
+            <button
+              type="button"
+              disabled={countdown > 0 || isResending}
+              onClick={handleResend}
+              className={`
+                w-full text-xs font-semibold py-2.5 px-4 rounded-xl border transition-all flex items-center justify-center gap-1.5
+                ${
+                  countdown > 0 || isResending
+                    ? 'border-surface-border bg-surface-subtle text-content-muted cursor-not-allowed'
+                    : 'border-sage-300 bg-white text-sage-800 hover:bg-sage-50 hover:border-sage-400 cursor-pointer shadow-xs'
+                }
+              `}
+            >
+              {isResending ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Resending...</span>
+                </>
+              ) : countdown > 0 ? (
+                <span>Resend link in {countdown}s</span>
+              ) : (
+                <span>Resend reset link</span>
+              )}
+            </button>
+
+            {resendStatus && (
+              <p className="text-[11px] text-center text-sage-800 font-medium">
+                {resendStatus}
+              </p>
+            )}
+          </div>
+
+          <div className="text-center pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setStep('request');
+                setError('');
+              }}
+              className="text-xs text-content-secondary hover:text-content-primary underline"
+            >
+              Use a different email
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Step 3: Reset Password Form */}
-      {step === 3 && (
+      {/* Step 3: New Password Form */}
+      {step === 'reset' && (
         <form onSubmit={handleResetPassword} className="space-y-4">
           <Input
             label="New password"
@@ -154,7 +281,7 @@ export const ForgotPasswordPage: React.FC = () => {
             required
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
-            placeholder="At least 8 characters"
+            helperText="At least 8 characters"
             leftIcon={<Lock className="w-4 h-4" />}
             rightIcon={
               <button
@@ -173,13 +300,22 @@ export const ForgotPasswordPage: React.FC = () => {
             required
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            placeholder="Re-enter your new password"
             leftIcon={<Lock className="w-4 h-4" />}
           />
 
           <Button type="submit" fullWidth size="lg" isLoading={isLoading} className="mt-2">
             Reset password
           </Button>
+
+          <div className="pt-2 text-center">
+            <button
+              type="button"
+              onClick={() => setStep('request')}
+              className="text-xs text-content-secondary hover:text-content-primary underline"
+            >
+              Need a new link? Request again
+            </button>
+          </div>
         </form>
       )}
 

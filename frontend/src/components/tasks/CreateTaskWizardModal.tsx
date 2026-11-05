@@ -3,39 +3,42 @@ import { Modal } from '../common/Modal';
 import { Input } from '../common/Input';
 import { Button } from '../common/Button';
 import { ConfidenceSlider } from '../common/ConfidenceSlider';
-import { Task, Subtask } from '../../types';
-import { Plus, Trash2, ArrowLeft, ArrowRight, Check, Calendar, Tag, ShieldCheck } from 'lucide-react';
+import { useTasks } from '../../context/TaskContext';
+import { Plus, Trash2, ArrowLeft, ArrowRight, Check } from 'lucide-react';
 
 interface CreateTaskWizardModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSaveTask: (task: Partial<Task>) => void;
+}
+
+interface LocalSubtask {
+  id: string;
+  name: string;
+  confidence: number;
+  estPomodoros: number;
 }
 
 export const CreateTaskWizardModal: React.FC<CreateTaskWizardModalProps> = ({
   isOpen,
   onClose,
-  onSaveTask,
 }) => {
+  const { groups, createTask } = useTasks();
   const [step, setStep] = useState<number>(1);
 
   // Form State
-  const [name, setName] = useState('Launch portfolio');
-  const [subtasks, setSubtasks] = useState<Subtask[]>([
-    { id: '1', name: 'Choose featured projects', confidence: 8, estPomodoros: 2, completed: false },
-    { id: '2', name: 'Write project summaries', confidence: 6, estPomodoros: 3, completed: false },
-    { id: '3', name: 'Polish portfolio layout', confidence: 3, estPomodoros: 2, completed: false },
-    { id: '4', name: 'Publish portfolio', confidence: 1, estPomodoros: 1, completed: false },
-  ]);
+  const [name, setName] = useState('');
+  const [subtasks, setSubtasks] = useState<LocalSubtask[]>([]);
   const [newSubtaskName, setNewSubtaskName] = useState('');
-  const [selectedGroups, setSelectedGroups] = useState<string[]>(['Work', 'Personal']);
-  const [dueDate, setDueDate] = useState('2026-11-03');
+  const [selectedGroupId, setSelectedGroupId] = useState<string>('');
+  const [dueDate, setDueDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [linkSubtaskDates, setLinkSubtaskDates] = useState(true);
   const [mainConfidence, setMainConfidence] = useState(8);
-  const [mainPomodoros, setMainPomodoros] = useState(2);
+  const [mainPomodoros, setMainPomodoros] = useState(1);
   const [activeSubtaskIndex, setActiveSubtaskIndex] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
-  const availableGroups = ['Work', 'Personal', 'Learning'];
+  const activeGroupId = selectedGroupId || (groups[0]?._id ?? '');
 
   const handleAddSubtask = () => {
     if (!newSubtaskName.trim()) return;
@@ -45,8 +48,7 @@ export const CreateTaskWizardModal: React.FC<CreateTaskWizardModalProps> = ({
         id: String(Date.now()),
         name: newSubtaskName.trim(),
         confidence: 8,
-        estPomodoros: 2,
-        completed: false,
+        estPomodoros: 1,
       },
     ]);
     setNewSubtaskName('');
@@ -56,7 +58,7 @@ export const CreateTaskWizardModal: React.FC<CreateTaskWizardModalProps> = ({
     setSubtasks(subtasks.filter((s) => s.id !== id));
   };
 
-  const updateSubtask = (index: number, partial: Partial<Subtask>) => {
+  const updateSubtask = (index: number, partial: Partial<LocalSubtask>) => {
     const updated = [...subtasks];
     updated[index] = { ...updated[index], ...partial };
     setSubtasks(updated);
@@ -67,26 +69,55 @@ export const CreateTaskWizardModal: React.FC<CreateTaskWizardModalProps> = ({
       ? subtasks.reduce((sum, s) => sum + s.estPomodoros, 0)
       : mainPomodoros;
 
-  const handleFinalSubmit = () => {
-    onSaveTask({
-      id: `task_${Date.now()}`,
-      name,
-      subtasks: subtasks.length > 0 ? subtasks : undefined,
-      groupIds: selectedGroups,
-      dueDate,
-      confidence: mainConfidence,
-      estPomodoros: totalPomodoros,
-      linkSubtaskDueDates: linkSubtaskDates,
-      completed: false,
-    });
-    onClose();
-    setStep(1);
+  const handleFinalSubmit = async () => {
+    if (!name.trim()) {
+      setStep(1);
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError('');
+
+    try {
+      // 1. Create Parent Task
+      const parent = await createTask({
+        name: name.trim(),
+        groupId: activeGroupId || undefined,
+        dueDate,
+        importance: Math.min(1, Math.max(0, mainConfidence / 10)),
+        estPomodoros: totalPomodoros,
+      });
+
+      // 2. Create subtasks if any
+      if (subtasks.length > 0 && parent._id) {
+        for (const st of subtasks) {
+          await createTask({
+            name: st.name,
+            parentTaskId: parent._id,
+            groupId: activeGroupId || undefined,
+            dueDate: linkSubtaskDates ? dueDate : undefined,
+            importance: Math.min(1, Math.max(0, st.confidence / 10)),
+            estPomodoros: st.estPomodoros,
+          });
+        }
+      }
+
+      // Reset
+      setName('');
+      setSubtasks([]);
+      setStep(1);
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'Failed to create task wizard items');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const stepTitles = [
     'Name your task',
     'Create subtasks',
-    'Assign Groups',
+    'Assign Group',
     'Set a due date',
     'Set confidence',
     'Set time to complete',
@@ -101,6 +132,12 @@ export const CreateTaskWizardModal: React.FC<CreateTaskWizardModalProps> = ({
       maxWidth="2xl"
     >
       <div className="space-y-6">
+        {error && (
+          <div className="p-3 rounded-lg bg-red-50 text-xs text-red-700 font-medium border border-red-200">
+            {error}
+          </div>
+        )}
+
         {/* Wizard Step Breadcrumbs */}
         <div className="flex items-center justify-between text-xs text-content-muted border-b border-surface-border pb-3 overflow-x-auto">
           {stepTitles.map((title, idx) => {
@@ -137,9 +174,10 @@ export const CreateTaskWizardModal: React.FC<CreateTaskWizardModalProps> = ({
               </div>
               <Input
                 label="Task Name"
+                required
+                autoFocus
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Launch portfolio"
                 helperText="Keep it clear and personal. You'll break it into steps next."
               />
               <div className="p-4 rounded-xl bg-sage-50 border border-sage-200">
@@ -158,33 +196,38 @@ export const CreateTaskWizardModal: React.FC<CreateTaskWizardModalProps> = ({
                   What would make this easier to start?
                 </h4>
                 <p className="text-sm text-content-secondary">
-                  Break <strong className="text-content-primary">{name}</strong> into smaller actions. This step is optional.
+                  Break <strong className="text-content-primary">{name || 'your task'}</strong> into smaller actions. This step is optional.
                 </p>
               </div>
 
-              <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                {subtasks.map((st, i) => (
-                  <div
-                    key={st.id}
-                    className="flex items-center justify-between p-2.5 rounded-lg border border-surface-border bg-surface-bg"
-                  >
-                    <span className="text-sm font-medium text-content-primary">
-                      {i + 1}. {st.name}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveSubtask(st.id)}
-                      className="text-content-muted hover:text-red-600 p-1"
+              {subtasks.length > 0 ? (
+                <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                  {subtasks.map((st, i) => (
+                    <div
+                      key={st.id}
+                      className="flex items-center justify-between p-2.5 rounded-lg border border-surface-border bg-surface-bg"
                     >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
+                      <span className="text-sm font-medium text-content-primary">
+                        {i + 1}. {st.name}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSubtask(st.id)}
+                        className="text-content-muted hover:text-red-600 p-1"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-6 rounded-xl border border-dashed border-surface-border text-center text-xs text-content-muted">
+                  No subtasks added yet. Type below to add bite-sized steps, or skip to continue.
+                </div>
+              )}
 
               <div className="flex gap-2">
                 <Input
-                  placeholder="Name a bite-sized action..."
                   value={newSubtaskName}
                   onChange={(e) => setNewSubtaskName(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddSubtask())}
@@ -196,27 +239,23 @@ export const CreateTaskWizardModal: React.FC<CreateTaskWizardModalProps> = ({
             </div>
           )}
 
-          {/* STEP 3: Assign Groups */}
+          {/* STEP 3: Assign Group */}
           {step === 3 && (
             <div className="space-y-4">
               <div>
                 <h4 className="text-lg font-bold text-content-primary">Where does this belong?</h4>
                 <p className="text-sm text-content-secondary">
-                  Choose any groups that fit. You don't have to pick just one.
+                  Choose a category for your project.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {availableGroups.map((grp) => {
-                  const selected = selectedGroups.includes(grp);
+                {groups.map((grp) => {
+                  const selected = activeGroupId === grp._id;
                   return (
                     <div
-                      key={grp}
-                      onClick={() => {
-                        setSelectedGroups((prev) =>
-                          prev.includes(grp) ? prev.filter((g) => g !== grp) : [...prev, grp]
-                        );
-                      }}
+                      key={grp._id}
+                      onClick={() => setSelectedGroupId(grp._id)}
                       className={`
                         p-4 rounded-xl border cursor-pointer transition-all
                         ${
@@ -227,22 +266,16 @@ export const CreateTaskWizardModal: React.FC<CreateTaskWizardModalProps> = ({
                       `}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="font-bold text-sm text-content-primary">{grp}</span>
+                        <span className="font-bold text-sm text-content-primary">{grp.name}</span>
                         {selected && <Check className="w-4 h-4 text-sage-700" />}
                       </div>
-                      <p className="text-xs text-content-muted">
-                        {grp === 'Work' && 'Professional projects and everyday work'}
-                        {grp === 'Personal' && 'Life outside the task list'}
-                        {grp === 'Learning' && 'Ideas, skills and curiosity'}
-                      </p>
+                      <span className="text-xs text-content-muted">
+                        {grp.taskCount || 0} active tasks
+                      </span>
                     </div>
                   );
                 })}
               </div>
-
-              <p className="text-xs text-content-muted">
-                {selectedGroups.length} groups selected ({selectedGroups.join(', ')}). All subtasks inherit these tags.
-              </p>
             </div>
           )}
 
@@ -258,7 +291,7 @@ export const CreateTaskWizardModal: React.FC<CreateTaskWizardModalProps> = ({
 
               <div className="max-w-xs">
                 <label className="block text-xs font-semibold uppercase tracking-wider text-content-secondary mb-1">
-                  Parent task due date
+                  Due date
                 </label>
                 <input
                   type="date"
@@ -268,20 +301,22 @@ export const CreateTaskWizardModal: React.FC<CreateTaskWizardModalProps> = ({
                 />
               </div>
 
-              <label className="flex items-center gap-3 p-3.5 rounded-xl border border-surface-border bg-surface-subtle/50 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={linkSubtaskDates}
-                  onChange={(e) => setLinkSubtaskDates(e.target.checked)}
-                  className="w-4 h-4 text-sage-600 rounded border-surface-border focus:ring-sage-500"
-                />
-                <div>
-                  <p className="text-xs font-semibold text-content-primary">Link subtask due dates to parent</p>
-                  <p className="text-[11px] text-content-muted">
-                    When on, all subtasks inherit the parent due date automatically.
-                  </p>
-                </div>
-              </label>
+              {subtasks.length > 0 && (
+                <label className="flex items-center gap-3 p-3.5 rounded-xl border border-surface-border bg-surface-subtle/50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={linkSubtaskDates}
+                    onChange={(e) => setLinkSubtaskDates(e.target.checked)}
+                    className="w-4 h-4 text-sage-600 rounded border-surface-border focus:ring-sage-500"
+                  />
+                  <div>
+                    <p className="text-xs font-semibold text-content-primary">Link subtask due dates to parent</p>
+                    <p className="text-[11px] text-content-muted">
+                      When on, all subtasks inherit the parent due date automatically.
+                    </p>
+                  </div>
+                </label>
+              )}
             </div>
           )}
 
@@ -423,11 +458,18 @@ export const CreateTaskWizardModal: React.FC<CreateTaskWizardModalProps> = ({
           )}
 
           {step < 6 ? (
-            <Button variant="primary" size="md" onClick={() => setStep(step + 1)}>
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => {
+                if (step === 1 && !name.trim()) return;
+                setStep(step + 1);
+              }}
+            >
               Continue <ArrowRight className="w-4 h-4 ml-1" />
             </Button>
           ) : (
-            <Button variant="primary" size="md" onClick={handleFinalSubmit}>
+            <Button variant="primary" size="md" onClick={handleFinalSubmit} isLoading={isSubmitting}>
               <Check className="w-4 h-4 mr-1" /> Create Task
             </Button>
           )}

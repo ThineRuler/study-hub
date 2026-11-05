@@ -92,13 +92,11 @@ export const CreateTaskMenu: React.FC<CreateTaskMenuProps> = ({ onTaskCreated, c
       <QuickAddModal
         isOpen={isQuickAddOpen}
         onClose={() => setIsQuickAddOpen(false)}
-        onAddTask={handleTaskSave}
       />
 
       <CreateTaskWizardModal
         isOpen={isWizardOpen}
         onClose={() => setIsWizardOpen(false)}
-        onSaveTask={handleTaskSave}
       />
     </div>
   );
