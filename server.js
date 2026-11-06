@@ -17,10 +17,11 @@ app.get('/api/health', (req, res) => {
 app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/groups', require('./routes/groups'));
 app.use('/api/users', require('./routes/users'));
+app.use('/api/auth', require('./routes/auth'));
 
 app.use((err, req, res, next) => {
   if (res.headersSent) return next(err);
-  const status = err.name === 'ValidationError' || err.name === 'CastError' ? 400 : 500;
+  const status = err.statusCode || (err.name === 'ValidationError' || err.name === 'CastError' ? 400 : 500);
   if (status === 500) console.error(err);
   res.status(status).json({ error: err.message || 'Server error' });
 });

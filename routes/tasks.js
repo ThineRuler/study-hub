@@ -2,7 +2,7 @@ const express = require('express');
 const Task = require('../database/models/Tasks');
 const Group = require('../database/models/Groups');
 const User = require('../database/models/User');
-const auth = require('../middleware/auth');
+const auth = require('../middleware/verify');
 const { priorityScore } = require('../utils/priority');
 
 const router = express.Router();
