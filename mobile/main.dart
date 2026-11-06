@@ -10,39 +10,117 @@ import 'package:table_calendar/table_calendar.dart';
 //Global variables for cross-page states
 String displayName = "";
 String userID = "";
-bool verifiedState = false;
 
+String token = "";
+
+//User preference settings
 String theme = "dark";
-double importance = 0;
-double dueDate = 0;
-double time = 0;
+double importanceWeight = 0;
+double dueDateWeight = 0;
+double timeWeight = 0;
 
-class LoginInfo {
+class User {
+  String id = "";
+  String name = "";
   String email = "";
-  String password = "";
-  bool isVerified = false;
+  bool isVerified = true;
 
-  LoginInfo({
-    required this.email,
-    required this.password,
-    required this.isVerified,
-  });
+  User({required this.name, required this.email, required this.isVerified});
 
-  factory LoginInfo.fromJson(Map<String, dynamic> json) {
-    displayName = json['displayName'];
-    userID = json['_id'];
-    theme = json['theme'];
-    importance = json['importance'];
-    dueDate = json['dueDate'];
-    time = json['time'];
+  factory User.fromJson(Map<String, dynamic> json) {
+    final data = json['data'];
+    final userInfo = data['user'];
 
-    verifiedState = json['email'];
+    token = data['token'];
 
-    return LoginInfo(
-      email: json['id'],
-      password: json['name'],
-      isVerified: json['email'],
+    return User(
+      name: userInfo['displayName'],
+      email: userInfo['email'],
+      isVerified: userInfo['isVerified'],
     );
+  }
+}
+
+class LoginAPI {
+  final String baseUrl = 'http://64.225.121.181';
+  //Android test url
+  //final String baseUrl = 'http://10.0.2.2:5000';
+
+  Future<User?> login(String email, String password) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/auth/sign-in'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      body: jsonEncode(<String, String>{'email': email, 'password': password}),
+    );
+
+    if (response.statusCode == 200) {
+      return User.fromJson(json.decode(response.body));
+    } else {
+      return null;
+    }
+  }
+
+  Future<int> register(
+      String displayName,
+      String email,
+      String password,
+      ) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/auth/sign-up'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      body: jsonEncode(<String, String>{
+        'name': displayName,
+        'email': email,
+        'password': password,
+      }),
+    );
+
+    if (response.statusCode == 201) {
+      return 201;
+    } else {
+      return 1;
+    }
+  }
+
+  Future<int> forgotPassword(String email) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/auth/forgot-password'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      body: jsonEncode(<String, String>{'email': email}),
+    );
+
+    if (response.statusCode == 201) {
+      return 201;
+    } else {
+      return 1;
+    }
+  }
+
+  Future<int> resetPassword(String id, String token, String newPassword) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/auth/reset-password'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      body: jsonEncode(<String, String>{
+        'id': id,
+        'token': token,
+        'newPassword': newPassword,
+      }),
+    );
+
+    if (response.statusCode == 201) {
+      // Password reset successful
+      return 201;
+    } else {
+      return 1;
+    }
   }
 }
 
@@ -87,7 +165,7 @@ class Task {
       subtasks: rawSubtasks
           .map(
             (item) => Subtask.fromJson(Map<String, dynamic>.from(item as Map)),
-          )
+      )
           .toList(),
     );
   }
@@ -125,9 +203,7 @@ class Subtask {
   }
 }
 
-
 class TaskCard extends StatelessWidget {
-
   final Task task;
 
   const TaskCard({super.key, required this.task});
@@ -136,36 +212,32 @@ class TaskCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: ListTile(
-        leading: Checkbox(
-          value: task.completed,
-          onChanged: (bool? value) {
-            
-          },
-        ),
+        leading: Checkbox(value: task.completed, onChanged: (bool? value) {}),
 
         title: Text(task.name),
-        subtitle: Text('[Dummy Group]   Confidence' + task.importance.toString() + '/10   Due some time'),
+        subtitle: Text(
+          '[Dummy Group]   Confidence' +
+              task.importance.toString() +
+              '/10   Due some time',
+        ),
 
         //placeholder
-
-        trailing: Wrap(spacing: 10, children: [
-          Icon(Icons.timer),
-          Text(task.estPomodoros.toString() + ' Pomodoros'),
-          IconButton(
-            icon: Icon(Icons.expand_circle_down_outlined), 
-            //placeholder
-            onPressed: () {
-              
-            },
-          ),
-        ]),
+        trailing: Wrap(
+          spacing: 10,
+          children: [
+            Icon(Icons.timer),
+            Text(task.estPomodoros.toString() + ' Pomodoros'),
+            IconButton(
+              icon: Icon(Icons.expand_circle_down_outlined),
+              //placeholder
+              onPressed: () {},
+            ),
+          ],
+        ),
       ),
     );
-
-  }  
-
-} 
-  
+  }
+}
 
 void main() {
   runApp(
@@ -177,8 +249,7 @@ void main() {
         '/newitem': (context) => const NewItemPage(),
         '/passwordreset': (context) => const PasswordResetPage(),
         '/register': (context) => const RegisterPage(),
-        '/email': (context) => const EmailConfirmationSend(),
-        '/emailcode': (context) => const EmailCodeConfirm(),
+        '/email': (context) => const EmailCodeConfirm(),
         '/password': (context) => const PasswordConfirmationSend(),
         '/passwordcode': (context) => PasswordCodeConfirm(),
       },
@@ -196,9 +267,10 @@ class HomePage extends StatefulWidget {
 }
 
 class HomePageState extends State<HomePage> {
-
   //Testing data
-  List<Task> loadedTasks = List.generate(5, (i) => Task(
+  List<Task> loadedTasks = List.generate(
+    5,
+        (i) => Task(
       id: 'null',
       userId: 'null',
       name: 'Task Test $i',
@@ -208,7 +280,8 @@ class HomePageState extends State<HomePage> {
       sortOrder: i,
       completed: false,
       subtasks: [],
-    ));
+    ),
+  );
 
   int currentPageIndex = 0;
 
@@ -218,9 +291,18 @@ class HomePageState extends State<HomePage> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: BackButton(),
         title: const Text("Home"),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.settings),
+            onPressed: () {
+              //Navigator.pushNamed(context, '/settings');
+            },
+          ),
+        ],
       ),
 
       //Navigation bar sourced from https://www.geeksforgeeks.org/flutter/bottomnavigationbar-widget-in-flutter/
@@ -257,11 +339,10 @@ class HomePageState extends State<HomePage> {
         ],
       ),
 
-
       body: <Widget>[
         /// Home page
-        /// 
-        
+        ///
+
         Expanded(
           child: ListView.builder(
             itemCount: loadedTasks.length,
@@ -271,18 +352,6 @@ class HomePageState extends State<HomePage> {
             },
           ),
         ),
-
-        /*
-        Card(
-          shadowColor: Colors.transparent,
-          margin: const EdgeInsets.all(8.0),
-          child: SizedBox.expand(
-            child: Center(
-              child: Text('Temporary Home', style: theme.textTheme.titleLarge),
-            ),
-          ),
-        ),
-        */
 
         /// Notifications page
         Padding(
@@ -294,16 +363,6 @@ class HomePageState extends State<HomePage> {
                 lastDay: DateTime.utc(2066, 11, 2),
                 focusedDay: DateTime.now(),
               ),
-              
-              /*
-              Card(
-                child: ListTile(
-                  leading: Icon(Icons.notifications_sharp),
-                  title: Text('Temp Calendar'),
-                  subtitle: Text(''),
-                ),
-              ),
-              */
 
               Expanded(
                 child: ListView.builder(
@@ -314,7 +373,6 @@ class HomePageState extends State<HomePage> {
                   },
                 ),
               ),
-
             ],
           ),
         ),
@@ -348,7 +406,6 @@ class HomePageState extends State<HomePage> {
           padding: EdgeInsets.all(8.0),
           child: Column(
             children: <Widget>[
-
               Expanded(
                 child: ListView.builder(
                   itemCount: loadedTasks.length,
@@ -358,22 +415,6 @@ class HomePageState extends State<HomePage> {
                   },
                 ),
               ),
-              /*
-              Card(
-                child: ListTile(
-                  leading: Icon(Icons.notifications_sharp),
-                  title: Text('Temp groups'),
-                  subtitle: Text(''),
-                ),
-              ),
-              Card(
-                child: ListTile(
-                  leading: Icon(Icons.notifications_sharp),
-                  title: Text('Temp groups'),
-                  subtitle: Text(''),
-                ),
-              ),
-              */
             ],
           ),
         ),
@@ -382,49 +423,26 @@ class HomePageState extends State<HomePage> {
           padding: EdgeInsets.all(8.0),
           child: Column(
             children: <Widget>[
-
               Expanded(
                 child: ListView.builder(
                   itemCount: loadedTasks.length,
                   itemBuilder: (context, index) {
-                   
                     final task = loadedTasks[index];
 
-                    if(task.completed != true){
-
+                    if (task.completed != true) {
                       return SizedBox.shrink();
-
                     } else {
-                      
                       return TaskCard(task: task);
                     }
                   },
                 ),
               ),
-
-              /*
-              Card(
-                child: ListTile(
-                  leading: Icon(Icons.notifications_sharp),
-                  title: Text('Temp Archive'),
-                  subtitle: Text(''),
-                ),
-              ),
-              Card(
-                child: ListTile(
-                  leading: Icon(Icons.notifications_sharp),
-                  title: Text('Temp Archive'),
-                  subtitle: Text(''),
-                ),
-              ),
-              */
             ],
           ),
         ),
       ][currentPageIndex],
     );
   }
-
 }
 
 class LoginPage extends StatefulWidget {
@@ -443,18 +461,14 @@ class LoginPageState extends State<LoginPage> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
 
+  final LoginAPI login = LoginAPI();
+
   @override
   void dispose() {
     // Clean up the controller when the widget is disposed.
     emailController.dispose();
     passwordController.dispose();
     super.dispose();
-  }
-
-  static Future<LoginInfo?> getLoginInfo() async {
-    final accountInfo = await http.get(Uri.parse('/api/users/me'));
-
-    return LoginInfo.fromJson(json.decode(accountInfo.body));
   }
 
   @override
@@ -517,9 +531,7 @@ class LoginPageState extends State<LoginPage> {
                           'Sign In',
                           style: TextStyle(color: Colors.green, fontSize: 20),
                         ),
-                        onPressed: () {
-                          //final LoginInfo attempt = getLoginInfo();
-
+                        onPressed: () async {
                           email = emailController.text;
                           password = passwordController.text;
 
@@ -561,16 +573,38 @@ class LoginPageState extends State<LoginPage> {
                             );
                           }
 
-                          //placeholder
-
                           if ((email != "") &&
                               (password != "") &&
-                              (password.length >= 8) &&
-                              (verifiedState == false)) {
-                            //Navigator.pushNamed(context, '/email');
-                            Navigator.pushNamed(context, '/home');
-                          } else {
-                            //Navigator.pushNamed(context, '/home');
+                              (password.length >= 8)) {
+                            final attempt = await login.login(email, password);
+                            if (context.mounted != true) {
+                              return;
+                            }
+
+                            if (attempt != null) {
+                              if (attempt.isVerified == true) {
+                                Navigator.pushNamed(context, '/home');
+                              } else {
+                                Navigator.pushNamed(context, '/email');
+                              }
+                            } else {
+                              showDialog(
+                                context: context,
+                                builder: (BuildContext context) => AlertDialog(
+                                  title: const Text('Invalid Input'),
+                                  content: const Text(
+                                    'Either email is unregistered or password is incorrect',
+                                  ),
+                                  actions: <Widget>[
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, 'OK'),
+                                      child: const Text('OK'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
                           }
                         },
                       ),
@@ -734,7 +768,7 @@ class PasswordResetState extends State<PasswordResetPage> {
                           style: TextStyle(color: Colors.green, fontSize: 20),
                         ),
                         onPressed: () {
-                          //final LoginInfo attempt = getLoginInfo();
+                          //final User attempt = getUser();
 
                           newPasswordOne = passwordControllerOne.text;
                           newPasswordTwo = passwordControllerTwo.text;
@@ -760,32 +794,26 @@ class PasswordResetState extends State<PasswordResetPage> {
                           }
 
                           if (newPasswordOne == newPasswordTwo) {
-                            //placeholder
-                            /* 
-                            if (newPasswordOne == oldPassword) {
-                              (BuildContext context) => AlertDialog(
-                                title: const Text('Invalid Input'),
-                                content: const Text(
-                                  'New password is the same as old one',
-                                ),
-                                actions: <Widget>[
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.pop(context, 'OK'),
-                                    child: const Text('OK'),
-                                  ),
-                                ],
-                              );
-                            } else {
-                            
-                              //placeholder
-                              Navigator.pushNamed(context, '/');
-                            }
-                            */
-
                             if ((newPasswordOne == newPasswordTwo) &&
                                 (newPasswordOne.length >= 8)) {
                               Navigator.pushNamed(context, '/');
+                            } else {
+                              showDialog(
+                                context: context,
+                                builder: (BuildContext context) => AlertDialog(
+                                  title: const Text('Invalid Input'),
+                                  content: const Text(
+                                    'New password must have at least 8 characters',
+                                  ),
+                                  actions: <Widget>[
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, 'OK'),
+                                      child: const Text('OK'),
+                                    ),
+                                  ],
+                                ),
+                              );
                             }
                           } else {
                             showDialog(
@@ -835,6 +863,8 @@ class RegisterState extends State<RegisterPage> {
   final nameController = TextEditingController();
   final passwordControllerOne = TextEditingController();
   final passwordControllerTwo = TextEditingController();
+
+  final LoginAPI login = LoginAPI();
 
   @override
   void dispose() {
@@ -951,7 +981,7 @@ class RegisterState extends State<RegisterPage> {
                     'Next',
                     style: TextStyle(color: Colors.green, fontSize: 20),
                   ),
-                  onPressed: () {
+                  onPressed: () async {
                     email = emailController.text;
                     displayName = nameController.text;
                     passwordOne = passwordControllerOne.text;
@@ -992,117 +1022,45 @@ class RegisterState extends State<RegisterPage> {
                       );
                     }
 
-                    //placeholder
                     if ((email != "") &&
                         (displayName != "") &&
                         (passwordOne != "") &&
                         (passwordTwo != "") &&
                         (passwordOne == passwordTwo) &&
                         (passwordOne.length >= 8)) {
-                      Navigator.pushNamed(context, '/email');
+                      final result = await login.register(
+                        displayName,
+                        email,
+                        passwordOne,
+                      );
+                      if (context.mounted != true) {
+                        return;
+                      }
+
+                      if (result != 201) {
+                        showDialog(
+                          context: context,
+                          builder: (BuildContext context) => AlertDialog(
+                            title: const Text('Registration Failed'),
+                            content: const Text(
+                              'Registration error. Try again',
+                            ),
+                            actions: <Widget>[
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, 'OK'),
+                                child: const Text('OK'),
+                              ),
+                            ],
+                          ),
+                        );
+
+                        return;
+                      } else {
+                        Navigator.pushNamed(context, '/email');
+                      }
                     }
                   },
                 ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class EmailConfirmationSend extends StatefulWidget {
-  const EmailConfirmationSend({super.key});
-
-  @override
-  EmailConfirmState createState() => EmailConfirmState();
-}
-
-class EmailConfirmState extends State<EmailConfirmationSend> {
-  String email = "";
-  final emailController = TextEditingController();
-
-  @override
-  void dispose() {
-    // Clean up the controller when the widget is disposed.
-    emailController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        leading: BackButton(),
-        title: const Text("Confirm Email"),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
-      ),
-
-      body: SingleChildScrollView(
-        child: Column(
-          children: <Widget>[
-            Padding(
-              padding: const EdgeInsets.only(top: 110.0),
-              child: Column(
-                children: [
-                  Center(
-                    child: SizedBox(
-                      width: 200,
-                      height: 100,
-                      child: Text(
-                        'Welcome to Small Steps',
-                        style: TextStyle(fontSize: 30, color: Colors.blueGrey),
-                      ),
-                    ),
-                  ),
-                  Center(
-                    child: SizedBox(
-                      width: 200,
-                      height: 100,
-                      child: Text(
-                        'Enter your registered email address. We will send you a code.',
-                        style: TextStyle(fontSize: 30, color: Colors.black),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 15),
-              child: TextField(
-                controller: emailController,
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Email address',
-                ),
-              ),
-            ),
-            SizedBox(
-              height: 65,
-              width: 360,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 20.0),
-                      child: ElevatedButton(
-                        child: Text(
-                          'Next',
-                          style: TextStyle(color: Colors.green, fontSize: 20),
-                        ),
-
-                        onPressed: () {
-                          email = emailController.text;
-                          //placeholder
-                          Navigator.pushNamed(context, '/emailcode');
-                        },
-                      ),
-                    ),
-                  ),
-                ],
               ),
             ),
           ],
@@ -1120,17 +1078,6 @@ class EmailCodeConfirm extends StatefulWidget {
 }
 
 class EmailCodeConfirmState extends State<EmailCodeConfirm> {
-  String enteredCode = "";
-  String realCode = "";
-
-  final codeController = TextEditingController();
-
-  @override
-  void dispose() {
-    // Clean up the controller when the widget is disposed.
-    codeController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1158,14 +1105,12 @@ class EmailCodeConfirmState extends State<EmailCodeConfirm> {
                 ),
               ),
             ),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 15),
-              child: TextField(
-                controller: codeController,
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Confirmation Code',
-                ),
+            SizedBox(
+              width: 200,
+              height: 100,
+              child: Text(
+                'We sent you an email. Enter the link to activate your account.',
+                style: TextStyle(fontSize: 15, color: Colors.green),
               ),
             ),
             SizedBox(
@@ -1178,34 +1123,13 @@ class EmailCodeConfirmState extends State<EmailCodeConfirm> {
                       padding: const EdgeInsets.only(top: 20.0),
                       child: ElevatedButton(
                         child: Text(
-                          'Confirm',
+                          'Ok',
                           style: TextStyle(color: Colors.green, fontSize: 20),
                         ),
                         onPressed: () {
                           //placeholder
 
-                          enteredCode = codeController.text;
-
                           Navigator.pushNamed(context, '/');
-                          /*
-                          if (enteredCode == realCode) {
-                            verifiedState = true;
-                            Navigator.pushNamed(context, '/');
-                          } else {
-                            (BuildContext context) => AlertDialog(
-                              title: const Text('Invalid Input'),
-                              content: const Text(
-                                'Validation code does not match sent code',
-                              ),
-                              actions: <Widget>[
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context, 'OK'),
-                                  child: const Text('OK'),
-                                ),
-                              ],
-                            );
-                          }
-                          */
                         },
                       ),
                     ),
@@ -1229,6 +1153,9 @@ class PasswordConfirmationSend extends StatefulWidget {
 
 class PasswordConfirmState extends State<PasswordConfirmationSend> {
   final emailController = TextEditingController();
+  String email = "";
+
+  final LoginAPI login = LoginAPI();
 
   @override
   void dispose() {
@@ -1302,9 +1229,35 @@ class PasswordConfirmState extends State<PasswordConfirmationSend> {
                         ),
 
                         onPressed: () {
-                          //placeholder
-
                           Navigator.pushNamed(context, '/passwordcode');
+                          //email = emailController.text;
+
+                          /*
+                          final attempt = await login.forgotPassword(email);
+
+                          if(attempt == 200){
+                            Navigator.pushNamed(context, '/passwordcode');
+                            return;
+                          }else{
+                            showDialog(
+                              context: context,
+                              builder: (context) {
+                                return AlertDialog(
+                                  title: Text('Error'),
+                                  content: Text('Error with email. Please try again'),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () {
+                                        Navigator.of(context).pop();
+                                      },
+                                      child: Text('OK'),
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                          }
+                          */
                         },
                       ),
                     ),
@@ -1328,9 +1281,10 @@ class PasswordCodeConfirm extends StatefulWidget {
 
 class PasswordCodeConfirmState extends State<PasswordCodeConfirm> {
   String enteredCode = "";
-  String realCode = "";
 
   final codeController = TextEditingController();
+
+  final LoginAPI login = LoginAPI();
 
   @override
   void dispose() {
@@ -1388,31 +1342,12 @@ class PasswordCodeConfirmState extends State<PasswordCodeConfirm> {
                           'Confirm',
                           style: TextStyle(color: Colors.green, fontSize: 20),
                         ),
-                        onPressed: () {
-                          //placeholder
-
+                        onPressed: () async {
                           enteredCode = codeController.text;
 
+                          //final attempt = await login.forgotPassword();
+
                           Navigator.pushNamed(context, '/passwordreset');
-                          /*
-                          if (enteredCode == realCode) {
-                            verifiedState = true;
-                            Navigator.pushNamed(context, '/passwordreset');
-                          } else {
-                            (BuildContext context) => AlertDialog(
-                              title: const Text('Invalid Input'),
-                              content: const Text(
-                                'Validation code does not match sent code',
-                              ),
-                              actions: <Widget>[
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context, 'OK'),
-                                  child: const Text('OK'),
-                                ),
-                              ],
-                            );
-                          }
-                          */
                         },
                       ),
                     ),
@@ -1422,6 +1357,33 @@ class PasswordCodeConfirmState extends State<PasswordCodeConfirm> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class SettingsPage extends StatefulWidget {
+  const SettingsPage({super.key});
+
+  @override
+  SettingsState createState() => SettingsState();
+}
+
+class SettingsState extends State<SettingsPage> {
+  String displayName = "";
+  String theme = "dark";
+  double importance = 0;
+  double dueDate = 0;
+  double time = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        leading: BackButton(),
+        title: const Text("User Settings"),
+        backgroundColor: Colors.green,
+        foregroundColor: Colors.white,
       ),
     );
   }
