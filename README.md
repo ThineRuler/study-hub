@@ -10,20 +10,14 @@ Start the server with `npm run dev` (or `npm start`). Copy `.env.example` to `.e
 Every task and group query is limited to that user. A user cannot read or change another user's tasks, groups, or settings.
 
 
-### Nodemailer Setup
+### Resend Email Setup
 
-First setup the transporter email (GMAIL):
+Email delivery uses the [Resend](https://resend.com) API (HTTPS port 443):
 
-- Go to your Google Account -> Security.
-- Ensure 2-Step Verification is turned on.
-- Search for App Passwords in the search bar.
-- Create a new App Password. 
-
-Copy the generated 16-character code and place altered fields in your .env file:
-
-- `#DOMAIN`
-- `#EMAIL`
-- `#EMAIL_PASSWORD`
+1. Sign up at [resend.com](https://resend.com) and create an API Key.
+2. Add your key and sender address to your `.env` file:
+   - `RESEND_API_KEY="re_xxxxxxxxxxxxxxxxxxxx"`
+   - `RESEND_FROM="StudyHub <onboarding@resend.dev>"` (or your verified domain address)
 
 ### Authentication
 
