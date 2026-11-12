@@ -459,8 +459,13 @@ class Subtask {
 
 class TaskCard extends StatelessWidget {
   final Task task;
+  final int callStatus = 0;
 
-  const TaskCard({super.key, required this.task});
+  final VoidCallback taskEdit;
+
+  final VoidCallback taskDelete;
+
+  const TaskCard({super.key, required this.task, required this.taskEdit, required this.taskDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -476,14 +481,23 @@ class TaskCard extends StatelessWidget {
         trailing: Wrap(
           spacing: 10,
           children: [
-            Icon(Icons.timer),
             Text(task.estPomodoros.toString() + ' Pomodoros'),
-            IconButton(
-              icon: Icon(Icons.expand_circle_down_outlined),              
-              onPressed: (
-                //placeholder edit/delete  
-              ) {},
-            ),
+            PopupMenuButton<String>(
+  icon: const Icon(Icons.expand_circle_down_outlined),
+  tooltip: 'Task actions',
+  onSelected: (action) {
+    if (action == 'edit') {
+      taskEdit();
+    } else if (action == 'delete') {
+      taskDelete();
+    }
+  },
+  itemBuilder: (context) => const [
+    PopupMenuItem(value: 'edit', child: Text('Edit')),
+    PopupMenuItem(value: 'delete', child: Text('Delete')),
+  ],
+),
+        
           ],
         ),
       ),
@@ -544,6 +558,7 @@ class HomePageState extends State<HomePage> {
   Future<List<Task>> loadedTasks = Future.value([]);
 
   int currentPageIndex = 0;
+  int apiStatus = 0;
 
   @override
   void initState() {
@@ -551,7 +566,19 @@ class HomePageState extends State<HomePage> {
     loadedTasks = taskAPI.getTasks();
   }
 
-  Widget _taskList({bool? completed}) {
+  void editTask(Task task) async {
+    Navigator.pushNamed(context, '/editTask', arguments: task);
+
+    loadedTasks = taskAPI.getTasks();
+  }
+
+  void deleteTask(Task task) {
+    setState(() {
+      loadedTasks = taskAPI.deleteTask(task.id).then((_) => taskAPI.getTasks());
+    });
+  }
+
+  Widget taskList({bool? completed}) {
     return FutureBuilder<List<Task>>(
       future: loadedTasks,
       builder: (context, snapshot) {
@@ -569,7 +596,63 @@ class HomePageState extends State<HomePage> {
         }
         return ListView.builder(
           itemCount: tasks.length,
-          itemBuilder: (context, index) => TaskCard(task: tasks[index]),
+          itemBuilder: (context, index) {
+            final task = tasks[index];
+            return TaskCard(
+              task: task,
+              taskEdit: () => editTask(task),
+              taskDelete: () {
+                setState(() {
+                  loadedTasks = taskAPI.deleteTask(task.id).then((_) => taskAPI.getTasks());
+                });
+              },
+            );
+            
+          }
+        );
+      },
+    );
+  }
+
+  Widget groupList(){
+
+    return FutureBuilder<List<Group>>(
+      future: taskAPI.getGroups(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+        final groups = snapshot.data ?? <Group>[];
+        if (groups.isEmpty) {
+          return Center(child: Text('No groups available'));
+        }
+        return ListView.builder(
+          itemCount: groups.length,
+          itemBuilder: (context, index) {
+            final group = groups[index];
+            final color = Color(0xFF000000 | int.parse(group.color.substring(1), radix: 16));
+  
+            return Card(
+              color: color,
+              child: ListTile(
+                title: Text(group.name),
+                subtitle: ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ViewGroupPage(group: group),
+                    ),
+                  );
+                },
+                child: Text('View Group'),
+              ),
+              ),
+            );
+          },
         );
       },
     );
@@ -611,19 +694,19 @@ class HomePageState extends State<HomePage> {
             label: 'Welcome, $displayName',
           ),
           NavigationDestination(
-            icon: Badge(child: Icon(Icons.calendar_today_outlined)),
+            icon: Icon(Icons.calendar_today_outlined),
             label: 'Calendar',
           ),
           NavigationDestination(
-            icon: Badge(child: Icon(Icons.plus_one_outlined)),
+            icon: Icon(Icons.plus_one_outlined),
             label: 'New Item',
           ),
           NavigationDestination(
-            icon: Badge(child: Icon(Icons.pages_sharp)),
+            icon: Icon(Icons.pages_sharp),
             label: 'Groups',
           ),
           NavigationDestination(
-            icon: Badge(child: Icon(Icons.punch_clock_outlined)),
+            icon: Icon(Icons.punch_clock_outlined),
             label: 'Archive',
           ),
         ],
@@ -633,7 +716,7 @@ class HomePageState extends State<HomePage> {
         /// Home page
         ///
 
-        _taskList(),
+        taskList(),
 
         /// Notifications page
         Padding(
@@ -646,7 +729,7 @@ class HomePageState extends State<HomePage> {
                 focusedDay: DateTime.now(),
               ),
 
-              Expanded(child: _taskList()),
+              Expanded(child: taskList()),
             ],
           ),
         ),
@@ -680,7 +763,9 @@ class HomePageState extends State<HomePage> {
                       style: TextStyle(color: Colors.green, fontSize: 20),
                     ),
                     onPressed: () {
+
                       Navigator.pushNamed(context, '/newgroup');
+
                     },
                   ),
                 ),
@@ -694,7 +779,7 @@ class HomePageState extends State<HomePage> {
           padding: EdgeInsets.all(8.0),
           child: Column(
             children: <Widget>[
-              Expanded(child: _taskList()),
+              Expanded(child: taskList()),
             ],
           ),
         ),
@@ -703,11 +788,102 @@ class HomePageState extends State<HomePage> {
           padding: EdgeInsets.all(8.0),
           child: Column(
             children: <Widget>[
-              Expanded(child: _taskList(completed: true)),
+              Expanded(child: taskList(completed: true)),
             ],
           ),
         ),
       ][currentPageIndex],
+    );
+  }
+}
+
+class ViewGroupPage extends StatefulWidget {
+  final Group group;
+
+  const ViewGroupPage({super.key, required this.group});
+
+  @override
+  ViewGroupPageState createState() => ViewGroupPageState();
+}
+
+class ViewGroupPageState extends State<ViewGroupPage> {
+
+  TaskAPI taskAPI = TaskAPI();
+  late Future<List<Task>> loadedTasks;
+
+  Widget taskList({bool? completed}) {
+    return FutureBuilder<List<Task>>(
+      future: loadedTasks,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+        final tasks = (snapshot.data ?? <Task>[])
+            .where(((task) => (completed == null || task.completed == completed) && (task.groupId == widget.group.id)))
+            .toList();
+        if (tasks.isEmpty) {
+          return Center(child: Text('No tasks available'));
+        }
+        return ListView.builder(
+          itemCount: tasks.length,
+          itemBuilder: (context, index) {
+            final task = tasks[index];
+            return TaskCard(
+              task: task,
+              taskEdit: () => editTask(task),
+              taskDelete: () {
+                setState(() {
+                  loadedTasks = taskAPI.deleteTask(task.id).then((_) => taskAPI.getTasks());
+                });
+              },
+            ); 
+          },
+        );
+      }
+    );
+  }
+
+  void editTask(Task task) {
+    Navigator.pushNamed(context, '/editTask', arguments: task);
+
+    loadedTasks = taskAPI.getTasks();
+  }
+
+  void taskDelete(Task task) {
+    taskAPI.deleteTask(task.id);
+    setState(() {
+      loadedTasks = taskAPI.getTasks();
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    loadedTasks = taskAPI.getTasks();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.group.name),
+        backgroundColor: Colors.green,
+        foregroundColor: Colors.white,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: taskList(),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1146,6 +1322,122 @@ class NewItemState extends State<NewItemPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class EditTaskPage extends StatefulWidget {
+  final Task task;
+  const EditTaskPage({super.key, required this.task});
+
+  @override
+  EditTaskPageState createState() => EditTaskPageState();
+}
+
+class EditTaskPageState extends State<EditTaskPage> {
+  TaskAPI taskAPI = TaskAPI();
+
+  String newName = "";
+  String newDescription = "";
+  double newImportance = 0.1;
+  int newEstPomodoros = 0;
+  String newDueDate = "";
+
+  late Future<Task?> editedTask;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        leading: BackButton(),
+        title: const Text("Edit Task"),
+        backgroundColor: Colors.green,
+        foregroundColor: Colors.white,
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  Text('Name:'),
+                  TextField(
+                    controller: TextEditingController(text: widget.task.name),
+                    onChanged: (value) {
+                      setState(() {
+                        newName = value;
+                      });
+                    },
+                    decoration: InputDecoration(
+                      labelText: 'widget.task.name',
+                    ),
+                  ),
+                  Text('Description:'),
+                  TextField(
+                    controller: TextEditingController(text: widget.task.description),
+                    onChanged: (value) {
+                      setState(() {
+                        newDescription = value;
+                      });
+                    },
+                    decoration: InputDecoration(
+                      labelText: '${widget.task.description}',
+                    ),
+                  ),
+                  Text('Importance:'),
+                  Slider(
+                    value: newImportance,
+                    onChanged: (value) {
+                      setState(() {
+                        newImportance = value;
+                      });
+                    },
+                    min: 0.1,
+                    max: 1.0,
+                    divisions: 9,
+                    label: newImportance.toString(),
+                  ),
+                  Text('Estimated Pomodoros:'),
+                  TextField(
+                    keyboardType: TextInputType.number,
+                    onChanged: (value) {
+                      setState(() {
+                        newEstPomodoros = int.tryParse(value) ?? 0;
+                      });
+                    },
+                    decoration: InputDecoration(
+                      labelText: '${widget.task.estPomodoros} Pomodoros',
+                    ),
+                  ),
+                  Text('Due Date:'),
+                  TextField(
+                    controller: TextEditingController(text: widget.task.dueDate),
+                    onChanged: (value) {
+                      setState(() {
+                        newDueDate = value;
+                      });
+                    },
+                    decoration: InputDecoration(
+                      labelText: 'Due Date (format YYYY-MM-DD)',
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: () async {
+                      editedTask = taskAPI.patchTask(widget.task.id, newName, newDescription, widget.task.groupId ?? '', newImportance, newEstPomodoros, newDueDate, widget.task.completed, widget.task.sortOrder);
+
+                      Navigator.pop(context, editedTask);
+
+                    },
+                    child: Text('Save'),
+                  ),
+                  // Add other fields for editing task here
+                ],
+              ),
+            ),
+          ],
+        ),
+      )
     );
   }
 }
