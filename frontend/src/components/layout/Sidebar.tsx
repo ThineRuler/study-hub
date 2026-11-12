@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTasks } from '../../context/TaskContext';
 import { CreateTaskMenu } from '../tasks/CreateTaskMenu';
@@ -17,6 +17,7 @@ import {
   Settings,
   LogOut,
   Sliders,
+  Search,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -33,6 +34,33 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupColor, setNewGroupColor] = useState('#10B981');
   const [isSubmittingGroup, setIsSubmittingGroup] = useState(false);
+  const navigate = useNavigate();
+  const [searchText, setSearchText] = useState('');
+
+  useEffect(() => {
+    if (location.pathname === '/search') {
+      setSearchText(new URLSearchParams(location.search).get('q') || '');
+    }
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    if (location.pathname !== '/search') return;
+    const q = searchText.trim();
+    const current = new URLSearchParams(location.search).get('q') || '';
+    if (!q || q === current) return;
+    const timer = setTimeout(() => {
+      navigate(`/search?q=${encodeURIComponent(q)}`, { replace: true });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchText]);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = searchText.trim();
+    if (!q) return;
+    navigate(`/search?q=${encodeURIComponent(q)}`);
+    onCloseMobile?.();
+  };
 
   const navItems = [
     { path: '/dashboard', label: 'Daily Digest', icon: SunMedium, badge: tasks.length || undefined },
@@ -72,6 +100,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
               WORKSPACE
             </h2>
           </div>
+
+          {/* Search */}
+          <form onSubmit={handleSearch} className="px-1" role="search">
+            <Input
+              type="search"
+              aria-label="Search tasks and groups"
+              placeholder="Search tasks & groups"
+              value={searchText}
+              maxLength={100}
+              onChange={(e) => setSearchText(e.target.value)}
+              leftIcon={<Search className="w-4 h-4" />}
+            />
+          </form>
 
           {/* Create Task Button with Sub-menu */}
           <div className="px-1">
