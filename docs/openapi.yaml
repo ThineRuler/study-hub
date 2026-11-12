@@ -1,0 +1,219 @@
+openapi: 3.0.3
+info:
+  title: StudyBuddy API
+  version: 1.0.0
+  description: |
+    REST API for StudyBuddy. These are the two endpoints we demo in SwaggerHub:
+    sign in to get a JWT, then search your own tasks and groups with partial matching.
+    Click "Authorize" and paste the token from /auth/sign-in (no "Bearer " prefix needed).
+servers:
+  - url: https://{domain}/api
+    variables:
+      domain:
+        default: your-domain.com
+        description: The team's live domain name
+tags:
+  - name: Auth
+  - name: Search
+paths:
+  /auth/sign-in:
+    post:
+      tags: [Auth]
+      summary: Sign in and get a JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: demo@studybuddy.test
+                password:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: User signed in successfully
+                  data:
+                    type: object
+                    properties:
+                      token:
+                        type: string
+                        description: 'JWT to send in the header Authorization: Bearer <token>'
+                      user:
+                        $ref: '#/components/schemas/User'
+        '401':
+          description: Wrong password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Email not verified yet
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No account with that email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /search:
+    get:
+      tags: [Search]
+      summary: Partial-match search over your tasks and groups
+      description: |
+        Case-insensitive partial match. "calc" matches "Calculus HW 3", "Pre-calc notes" and the group "Calc I".
+        Tasks match on name or description; groups match on name. Only the signed-in user's data is searched.
+        The query is matched literally, so characters like "+" or "." are safe to search for.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Text to search for (1 to 100 characters)
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+          example: calc
+        - name: type
+          in: query
+          required: false
+          description: Which collections to search
+          schema:
+            type: string
+            enum: [all, tasks, groups]
+            default: all
+        - name: completed
+          in: query
+          required: false
+          description: Only return tasks with this completed state
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          required: false
+          description: Max results per collection
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        '200':
+          description: Matching tasks and groups
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  query:
+                    type: string
+                    example: calc
+                  tasks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TaskResult'
+                  groups:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/GroupResult'
+        '400':
+          description: Missing or invalid query parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: q is required
+        '401':
+          description: Missing, invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Not logged in
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+    User:
+      type: object
+      properties:
+        _id:
+          type: string
+        email:
+          type: string
+        displayName:
+          type: string
+        isVerified:
+          type: boolean
+    TaskResult:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: 6650f1c2a1b2c3d4e5f60718
+        name:
+          type: string
+          example: Calculus HW 3
+        description:
+          type: string
+          example: Chapter 4 problems
+        groupId:
+          type: string
+          nullable: true
+        parentTaskId:
+          type: string
+          nullable: true
+        dueDate:
+          type: string
+          format: date-time
+          nullable: true
+        completed:
+          type: boolean
+          example: false
+        priorityScore:
+          type: number
+    GroupResult:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: 6650f1c2a1b2c3d4e5f60719
+        name:
+          type: string
+          example: Calc I
+        color:
+          type: string
+          example: '#FFFFFF'
+        sortOrder:
+          type: number
