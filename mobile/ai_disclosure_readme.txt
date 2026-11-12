@@ -110,6 +110,44 @@ class Subtask {
 
 Then parse the response map with `Task.fromJson(responseData)`. If the API gives you a JSON string, decode it first with `jsonDecode`. This models one level of subtasks; if subtasks can also contain subtasks, make the model recursive by giving `Subtask` its own `List<Subtask>`."
 
+Later on, to ensure the TaskCard builder is configured to receive task data from the server, I prompted "How can I reconfigure the builder for TaskCard to take a Task object as a parameter and use its data to construct itself? Assume the API for fetching tasks is implemented into HomePageState."
+
+Copilot selected GPT-6 Terra as the model. The response:
+
+"TaskCard already accepts a Task through its constructor. You can replace its placeholder text with more of that task’s data:
+class TaskCard extends StatelessWidget {
+  final Task task;
+
+  const TaskCard({super.key, required this.task});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        leading: Checkbox(
+          value: task.completed,
+          onChanged: null, // Read-only until completion updates are implemented.
+        ),
+        title: Text(task.name),
+        subtitle: Text(
+          'Importance: ${task.importance} · '
+          'Due: ${task.dueDate ?? "No due date"}',
+        ),
+        trailing: Text('${task.estPomodoros} Pomodoros'),
+      ),
+    );
+  }
+}
+
+
+The existing ListView.builder already passes each task correctly:
+
+itemBuilder: (context, index) {
+  return TaskCard(task: loadedTasks[index]);
+},
+
+A group name isn’t available on Task; only groupId is, so displaying the name requires looking it up separately. Also, the current HomePageState still contains test data rather than an API fetch. No files were changed."
+
 The following prompt was used at occasional intervals for the sake of indentation/code readability:
 
 "Please provide consistent indentation/formatting across the entire file without impeding on any object functionality."

@@ -25,38 +25,49 @@ class User {
   String email = "";
   bool isVerified = true;
 
-  User({required this.name, required this.email, required this.isVerified});
+  User({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.isVerified,
+  });
 
   factory User.fromJson(Map<String, dynamic> json) {
-    final data = json['data'];
-    final userInfo = data['user'];
+    final data = Map<String, dynamic>.from(json['data'] as Map);
+    final userInfo = Map<String, dynamic>.from(data['user'] as Map);
 
-    token = data['token'];
-
+    token = data['token'] as String;
+    userID = (userInfo['_id'] ?? userInfo['id']) as String;
     return User(
-      name: userInfo['displayName'],
-      email: userInfo['email'],
-      isVerified: userInfo['isVerified'],
+      id: userID,
+      name: displayName,
+      email: userInfo['email'] as String? ?? '',
+      isVerified: userInfo['isVerified'] as bool? ?? false,
     );
   }
 }
 
+Map<String, String> _apiHeaders({bool authenticated = false}) {
+  return <String, String>{
+    'Content-Type': 'application/json; charset=UTF-8',
+    if (authenticated && token.isNotEmpty) 'Authorization': 'Bearer $token',
+  };
+}
+
 class LoginAPI {
   final String baseUrl = 'http://64.225.121.181';
-  //Android test url
-  //final String baseUrl = 'http://10.0.2.2:5000';
 
   Future<User?> login(String email, String password) async {
     final response = await http.post(
       Uri.parse('$baseUrl/api/auth/sign-in'),
-      headers: <String, String>{
-        'Content-Type': 'application/json; charset=UTF-8',
-      },
+      headers: _apiHeaders(),
       body: jsonEncode(<String, String>{'email': email, 'password': password}),
     );
 
     if (response.statusCode == 200) {
-      return User.fromJson(json.decode(response.body));
+      return User.fromJson(
+        Map<String, dynamic>.from(json.decode(response.body) as Map),
+      );
     } else {
       return null;
     }
@@ -69,9 +80,7 @@ class LoginAPI {
   ) async {
     final response = await http.post(
       Uri.parse('$baseUrl/api/auth/sign-up'),
-      headers: <String, String>{
-        'Content-Type': 'application/json; charset=UTF-8',
-      },
+      headers: _apiHeaders(),
       body: jsonEncode(<String, String>{
         'name': displayName,
         'email': email,
@@ -89,9 +98,7 @@ class LoginAPI {
   Future<int> forgotPassword(String email) async {
     final response = await http.post(
       Uri.parse('$baseUrl/api/auth/forgot-password'),
-      headers: <String, String>{
-        'Content-Type': 'application/json; charset=UTF-8',
-      },
+      headers: _apiHeaders(),
       body: jsonEncode(<String, String>{'email': email}),
     );
 
@@ -100,6 +107,262 @@ class LoginAPI {
     } else {
       return 1;
     }
+  }
+}
+
+class TaskAPI {
+  final String baseUrl = 'http://64.225.121.181';
+
+  Future<List<Task>> getTasks({
+    bool? completed,
+    String? groupId,
+    String? parentTaskId,
+    String? from,
+    String? to,
+  }) async {
+    final queryParameters = <String, String>{
+      if (completed != null) 'completed': completed.toString(),
+      if (groupId != null && groupId.isNotEmpty) 'groupId': groupId,
+      if (parentTaskId != null && parentTaskId.isNotEmpty)
+        'parentTaskId': parentTaskId,
+      if (from != null && from.isNotEmpty) 'from': from,
+      if (to != null && to.isNotEmpty) 'to': to,
+    };
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/tasks').replace(
+        queryParameters: queryParameters.isEmpty ? null : queryParameters,
+      ),
+      headers: _apiHeaders(authenticated: true),
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body) as List;
+      return data.map((item) => Task.fromJson(item)).toList();
+    } else {
+      return [];
+    }
+  }
+
+  Future<Task?> getTaskById(String id) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/tasks/${Uri.encodeComponent(id)}'),
+      headers: _apiHeaders(authenticated: true),
+    );
+
+    if (response.statusCode == 200) {
+      return Task.fromJson(
+        Map<String, dynamic>.from(json.decode(response.body) as Map),
+      );
+    } else {
+      return null;
+    }
+  }
+
+  Future<int> createTask(
+    String name,
+    double importance,
+    int estPomodoros,
+    String? description,
+    String? groupId,
+    String? dueDate,
+  ) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/tasks'),
+      headers: _apiHeaders(authenticated: true),
+      body: jsonEncode(<String, dynamic>{
+        'name': name,
+        'description': description,
+        'groupId': groupId,
+        'importance': importance,
+        'estPomodoros': estPomodoros,
+        'dueDate': dueDate,
+      }),
+    );
+
+    if (response.statusCode == 201) {
+      return 201;
+    } else {
+      return 1;
+    }
+  }
+
+  Future<int> deleteTask(String id) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/api/tasks/${Uri.encodeComponent(id)}'),
+      headers: _apiHeaders(authenticated: true),
+    );
+
+    if (response.statusCode == 204) {
+      return 204;
+    } else {
+      return 1;
+    }
+  }
+
+  Future<Task?> patchTask(
+    String id,
+    String name,
+    String description,
+    String groupId,
+    double importance,
+    int estPomodoros,
+    String dueDate,
+    bool completed,
+    int sortOrder,
+  ) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/api/tasks/${Uri.encodeComponent(id)}'),
+      headers: _apiHeaders(authenticated: true),
+      body: jsonEncode(<String, dynamic>{
+        'name': name,
+        'description': description,
+        'groupId': groupId,
+        'importance': importance,
+        'estPomodoros': estPomodoros,
+        'dueDate': dueDate,
+        'completed': completed,
+        'sortOrder': sortOrder,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      return Task.fromJson(json.decode(response.body));
+    } else {
+      return null;
+    }
+  }
+
+  Future<int> createGroup(String name, String color) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/groups'),
+      headers: _apiHeaders(authenticated: true),
+      body: jsonEncode(<String, dynamic>{'name': name, 'color': color}),
+    );
+
+    if (response.statusCode == 201) {
+      return 201;
+    } else {
+      return 1;
+    }
+  }
+
+  Future<List<Group>> getGroups() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/groups'),
+      headers: _apiHeaders(authenticated: true),
+    );
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body) as List;
+      return data
+          .map((item) => Group.fromJson(Map<String, dynamic>.from(item as Map)))
+          .toList();
+    }
+    return [];
+  }
+
+  Future<Group?> patchGroup(
+    String id, {
+    String? name,
+    String? color,
+    int? sortOrder,
+  }) async {
+    final body = <String, dynamic>{
+      'name': ?name,
+      'color': ?color,
+      'sortOrder': ?sortOrder,
+    };
+    final response = await http.patch(
+      Uri.parse('$baseUrl/api/groups/${Uri.encodeComponent(id)}'),
+      headers: _apiHeaders(authenticated: true),
+      body: jsonEncode(body),
+    );
+    if (response.statusCode == 200) {
+      return Group.fromJson(
+        Map<String, dynamic>.from(json.decode(response.body) as Map),
+      );
+    }
+    return null;
+  }
+
+  Future<int> deleteGroup(String id) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/api/groups/${Uri.encodeComponent(id)}'),
+      headers: _apiHeaders(authenticated: true),
+    );
+    return response.statusCode == 204 ? 204 : 1;
+  }
+}
+
+class OptionAPI {
+  final String baseUrl = 'http://64.225.121.181';
+
+  Future<int> getCurrentUser() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/users/me'),
+      headers: _apiHeaders(authenticated: true),
+    );
+    if (response.statusCode == 200) {
+      return 200;
+    } else {
+      return 1;
+    }
+  }
+
+  Future<int> patchCurrentUser(
+    String displayName,
+    String theme,
+    double importanceWeight,
+    double dueDateWeight,
+    double timeWeight,
+  ) async {
+    final weights = <String, double>{
+      'importance': importanceWeight,
+      'dueDate': dueDateWeight,
+      'time': timeWeight,
+    };
+    final settings = <String, dynamic>{
+      'theme': theme,
+      if (weights.isNotEmpty) 'weights': weights,
+    };
+    final body = <String, dynamic>{
+      'displayName': displayName,
+      if (settings.isNotEmpty) 'settings': settings,
+    };
+    final response = await http.patch(
+      Uri.parse('$baseUrl/api/users/me'),
+      headers: _apiHeaders(authenticated: true),
+      body: jsonEncode(body),
+    );
+    if (response.statusCode != 200) {
+      return 1;
+    }
+    return 200;
+  }
+}
+
+class Group {
+  final String id;
+  final String name;
+  final String color;
+  final int sortOrder;
+  final int taskCount;
+
+  Group({
+    required this.id,
+    required this.name,
+    required this.color,
+    this.sortOrder = 0,
+    this.taskCount = 0,
+  });
+
+  factory Group.fromJson(Map<String, dynamic> json) {
+    return Group(
+      id: json['_id'] as String,
+      name: json['name'] as String,
+      color: json['color'] as String? ?? '#FFFFFF',
+      sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
+      taskCount: (json['taskCount'] as num?)?.toInt() ?? 0,
+    );
   }
 }
 
@@ -116,6 +379,10 @@ class Task {
   final int sortOrder;
   final bool completed;
   final List<Subtask> subtasks;
+  final String? description;
+  final String? groupId;
+  final String? parentTaskId;
+  final String? dueDate;
 
   Task({
     required this.id,
@@ -127,6 +394,10 @@ class Task {
     required this.sortOrder,
     required this.completed,
     required this.subtasks,
+    this.description,
+    this.groupId,
+    this.parentTaskId,
+    this.dueDate,
   });
 
   factory Task.fromJson(Map<String, dynamic> json) {
@@ -134,18 +405,22 @@ class Task {
 
     return Task(
       id: json['_id'] as String,
-      userId: json['userId'] as String,
+      userId: json['userId'] as String? ?? '',
       name: json['name'] as String,
-      importance: (json['importance'] as num).toDouble(),
-      estPomodoros: json['estPomodoros'] as int,
-      priorityScore: (json['priorityScore'] as num).toDouble(),
-      sortOrder: json['sortOrder'] as int,
-      completed: json['completed'] as bool,
+      importance: (json['importance'] as num?)?.toDouble() ?? 0,
+      estPomodoros: (json['estPomodoros'] as num?)?.toInt() ?? 1,
+      priorityScore: (json['priorityScore'] as num?)?.toDouble() ?? 0,
+      sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
+      completed: json['completed'] as bool? ?? false,
       subtasks: rawSubtasks
           .map(
             (item) => Subtask.fromJson(Map<String, dynamic>.from(item as Map)),
           )
           .toList(),
+      description: json['description'] as String?,
+      groupId: json['groupId'] as String?,
+      parentTaskId: json['parentTaskId'] as String?,
+      dueDate: json['dueDate'] as String?,
     );
   }
 }
@@ -172,12 +447,12 @@ class Subtask {
   factory Subtask.fromJson(Map<String, dynamic> json) {
     return Subtask(
       id: json['_id'] as String,
-      parentTaskId: json['parentTaskId'] as String,
+      parentTaskId: json['parentTaskId'] as String? ?? '',
       name: json['name'] as String,
-      importance: (json['importance'] as num).toDouble(),
-      estPomodoros: json['estPomodoros'] as int,
-      priorityScore: (json['priorityScore'] as num).toDouble(),
-      completed: json['completed'] as bool,
+      importance: (json['importance'] as num?)?.toDouble() ?? 0,
+      estPomodoros: (json['estPomodoros'] as num?)?.toInt() ?? 1,
+      priorityScore: (json['priorityScore'] as num?)?.toDouble() ?? 0,
+      completed: json['completed'] as bool? ?? false,
     );
   }
 }
@@ -195,21 +470,19 @@ class TaskCard extends StatelessWidget {
 
         title: Text(task.name),
         subtitle: Text(
-          '[Dummy Group]   Confidence' +
-              task.importance.toString() +
-              '/10   Due some time',
+          (task.description ?? '') + '\n  Confidence' + task.importance.toString() + '/10   Due ' + (task.dueDate ?? 'N/A'),
         ),
-
-        //placeholder
+   
         trailing: Wrap(
           spacing: 10,
           children: [
             Icon(Icons.timer),
             Text(task.estPomodoros.toString() + ' Pomodoros'),
             IconButton(
-              icon: Icon(Icons.expand_circle_down_outlined),
-              //placeholder
-              onPressed: () {},
+              icon: Icon(Icons.expand_circle_down_outlined),              
+              onPressed: (
+                //placeholder edit/delete  
+              ) {},
             ),
           ],
         ),
@@ -230,6 +503,7 @@ void main() {
         '/email': (context) => const EmailCodeConfirm(),
         '/password': (context) => const PasswordConfirmationSend(),
         '/passwordcode': (context) => PasswordCodeConfirm(),
+        '/createGroup': (context) => const NewGroupPage(),
       },
       debugShowCheckedModeBanner: false,
     ),
@@ -245,6 +519,10 @@ class HomePage extends StatefulWidget {
 }
 
 class HomePageState extends State<HomePage> {
+
+  TaskAPI taskAPI = TaskAPI();
+
+  /*
   //Testing data
   List<Task> loadedTasks = List.generate(
     5,
@@ -261,7 +539,41 @@ class HomePageState extends State<HomePage> {
     ),
   );
 
+  */
+
+  Future<List<Task>> loadedTasks = Future.value([]);
+
   int currentPageIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    loadedTasks = taskAPI.getTasks();
+  }
+
+  Widget _taskList({bool? completed}) {
+    return FutureBuilder<List<Task>>(
+      future: loadedTasks,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+        final tasks = (snapshot.data ?? <Task>[])
+            .where((task) => completed == null || task.completed == completed)
+            .toList();
+        if (tasks.isEmpty) {
+          return Center(child: Text('No tasks available'));
+        }
+        return ListView.builder(
+          itemCount: tasks.length,
+          itemBuilder: (context, index) => TaskCard(task: tasks[index]),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -321,15 +633,7 @@ class HomePageState extends State<HomePage> {
         /// Home page
         ///
 
-        Expanded(
-          child: ListView.builder(
-            itemCount: loadedTasks.length,
-            itemBuilder: (context, index) {
-              final task = loadedTasks[index];
-              return TaskCard(task: task);
-            },
-          ),
-        ),
+        _taskList(),
 
         /// Notifications page
         Padding(
@@ -342,15 +646,7 @@ class HomePageState extends State<HomePage> {
                 focusedDay: DateTime.now(),
               ),
 
-              Expanded(
-                child: ListView.builder(
-                  itemCount: loadedTasks.length,
-                  itemBuilder: (context, index) {
-                    final task = loadedTasks[index];
-                    return TaskCard(task: task);
-                  },
-                ),
-              ),
+              Expanded(child: _taskList()),
             ],
           ),
         ),
@@ -375,6 +671,20 @@ class HomePageState extends State<HomePage> {
                   ),
                 ),
               ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 20.0),
+                  child: ElevatedButton(
+                    child: Text(
+                      'Enter new group page',
+                      style: TextStyle(color: Colors.green, fontSize: 20),
+                    ),
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/newgroup');
+                    },
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -384,15 +694,7 @@ class HomePageState extends State<HomePage> {
           padding: EdgeInsets.all(8.0),
           child: Column(
             children: <Widget>[
-              Expanded(
-                child: ListView.builder(
-                  itemCount: loadedTasks.length,
-                  itemBuilder: (context, index) {
-                    final task = loadedTasks[index];
-                    return TaskCard(task: task);
-                  },
-                ),
-              ),
+              Expanded(child: _taskList()),
             ],
           ),
         ),
@@ -401,20 +703,7 @@ class HomePageState extends State<HomePage> {
           padding: EdgeInsets.all(8.0),
           child: Column(
             children: <Widget>[
-              Expanded(
-                child: ListView.builder(
-                  itemCount: loadedTasks.length,
-                  itemBuilder: (context, index) {
-                    final task = loadedTasks[index];
-
-                    if (task.completed != true) {
-                      return SizedBox.shrink();
-                    } else {
-                      return TaskCard(task: task);
-                    }
-                  },
-                ),
-              ),
+              Expanded(child: _taskList(completed: true)),
             ],
           ),
         ),
@@ -641,13 +930,26 @@ class NewItemPage extends StatefulWidget {
 }
 
 class NewItemState extends State<NewItemPage> {
-  String displayName = "";
-  String theme = "dark";
-  double importance = 0;
-  double dueDate = 0;
-  double time = 0;
+  TaskAPI taskAPI = TaskAPI();
+  late Future<List<Group>> groups;
 
   String taskName = "";
+  String description = "";
+
+  String groupId = "";
+
+  double importance = 0.1;
+  String dueDate = "";
+  int estPomodoros = 0;
+
+  int taskSuccess = 0;
+
+  @override
+  void initState() {
+    super.initState();
+
+    groups = taskAPI.getGroups();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -658,9 +960,316 @@ class NewItemState extends State<NewItemPage> {
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
       ),
+
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: TextField(
+                decoration: InputDecoration(labelText: 'Task Name'),
+                onChanged: (value) {
+                  setState(() {
+                    taskName = value;
+                  });
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: TextField(
+                decoration: InputDecoration(labelText: 'Description'),
+                onChanged: (value) {
+                  setState(() {
+                    description = value;
+                  });
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 110.0),
+              child: Column(
+                children: [
+                  Text("Group:"),
+                  Builder(
+                    builder: (context) {
+                      return FutureBuilder<List<Group>>(
+                        future: groups,
+                        builder: (context, snapshot) {
+                          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                            return Text('No groups found');
+                          } else {
+                            return DropdownButton<String>(
+                              value: groupId.isEmpty ? null : groupId,
+                              hint: const Text('Select Group'),
+                              items: snapshot.data!.map((group) {
+                                return DropdownMenuItem<String>(
+                                  value: group.id,
+                                  child: Text(group.name),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  groupId = value ?? '';
+                                });
+                              },
+                            );
+                          }
+                        },
+                      );
+                    },
+                  ),
+                  ElevatedButton(
+                    onPressed: () async {
+                      await Navigator.pushNamed(context, '/createGroup');
+
+                      if (!mounted) return;
+
+                      setState(() {
+                        groupId = '';
+                        groups = taskAPI.getGroups();
+                      });
+                    },
+                    child: Text('Create new group'),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  Text('Importance:'),
+                  Slider(
+                    value: importance,
+                    min: 0.1,
+                    max: 1.0,
+                    divisions: 9,
+                    label: importance.toStringAsFixed(1),
+                    onChanged: (value) {
+                      setState(() {
+                        importance = value;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: TextField(
+                decoration: InputDecoration(
+                  labelText: 'Due Date (format YYYY-MM-DD)',
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    dueDate = value;
+                  });
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 110.0),
+              child: Column(
+                children: [
+                  SizedBox(
+                    width: 200,
+                    height: 100,
+                    child: Text(
+                      'Time Estimate:',
+                      style: TextStyle(fontSize: 15, color: Colors.green),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: TextField(
+                decoration: InputDecoration(labelText: 'Estimated Pomodoros'),
+                onChanged: (value) {
+                  setState(() {
+                    estPomodoros = int.tryParse(value) ?? 0;
+                  });
+                },
+              ),
+            ),
+            SizedBox(
+              height: 65,
+              width: 360,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 20.0),
+                child: ElevatedButton(
+                  child: Text(
+                    'Submit',
+                    style: TextStyle(color: Colors.green, fontSize: 20),
+                  ),
+                  onPressed: () async {
+                    taskSuccess = await TaskAPI().createTask(
+                      taskName,
+                      importance,
+                      estPomodoros,
+                      description,
+                      groupId,
+                      dueDate,
+                    );
+
+                    if (context.mounted != true){
+                      return;
+                    }
+
+                    if (taskSuccess == 201) {
+                      Navigator.of(context).pop();
+                    } else {
+                      showDialog(
+                        context: context,
+                        builder: (BuildContext context) {
+                          return AlertDialog(
+                            title: Text('Error'),
+                            content: Text('Error with task creation'),
+                            actions: [
+                              TextButton(
+                                child: Text('OK'),
+                                onPressed: () {
+                                  Navigator.of(context).pop();
+                                },
+                              ),
+                            ],
+                          );
+                        },
+                      );
+                    }
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
+
+class NewGroupPage extends StatefulWidget {
+  const NewGroupPage({super.key});
+
+  @override
+  NewGroupState createState() => NewGroupState();
+}
+
+class NewGroupState extends State<NewGroupPage> {
+
+  TaskAPI taskAPI = TaskAPI();
+
+  String groupName = "";
+  String groupColor = "#FFFFFF";
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        leading: BackButton(),
+        title: const Text("New Group"),
+        backgroundColor: Colors.green,
+        foregroundColor: Colors.white,
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  Text('Name:'),
+                  TextField(
+                    onChanged: (value) {
+                      setState(() {
+                        groupName = value;
+                      });
+                    },
+                    decoration: InputDecoration(
+                      labelText: 'Group Name',
+                    ),
+                  ),
+                  DropdownButton(items: const[
+                    DropdownMenuItem(
+                      value: "#10B981",
+                      child: Text("Green"),
+                    ),
+                    DropdownMenuItem(
+                      value: "#F59E0B",
+                      child: Text("Orange"),
+                    ),
+                    DropdownMenuItem(
+                      value: "#3B82F6",
+                      child: Text("Blue"),
+                    ),
+                    DropdownMenuItem(
+                      value: "#8B5CF6",
+                      child: Text("Purple"),
+                    ),
+                    DropdownMenuItem(
+                      value: "#EC4899",
+                      child: Text("Pink"),
+                    ),
+                    DropdownMenuItem(
+                      value: "#6B7280",
+                      child: Text("Grey"),
+                    )
+                  ], onChanged: (value) {
+                    setState(() {
+                      groupColor = value!;
+                    });
+                  }),
+
+                  ElevatedButton(
+                    onPressed: () async {
+
+                      int groupSuccess = await taskAPI.createGroup(groupName, groupColor);
+                      if (groupSuccess == 409) {
+                      
+                      if(context.mounted != true){
+                        return;
+                      }
+                        
+                        showDialog(
+                          
+                          context: context,
+                          builder: (BuildContext context) {
+                            return AlertDialog(
+                              title: Text('Group already exists'),
+                              content: Text('Group name already exists'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.of(context).pop();
+                                  },
+                                  child: Text('OK'),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      } else {
+                        if(context.mounted != true){
+                        return;
+                      }
+
+                        Navigator.of(context).pop();
+                      }
+                    },
+                    child: Text("Create Group"),
+                  )
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -1176,9 +1785,17 @@ class SettingsPage extends StatefulWidget {
 class SettingsState extends State<SettingsPage> {
   String displayName = "";
   String theme = "dark";
-  double importance = 0;
-  double dueDate = 0;
-  double time = 0;
+  double importance = 0.2;
+  double dueDate = 0.7;
+  double time = 0.1;
+
+  OptionAPI optionAPI = OptionAPI();
+
+  TextEditingController displayNameController = TextEditingController();
+  TextEditingController importanceController = TextEditingController();
+  TextEditingController dueDateController = TextEditingController();
+  TextEditingController timeController = TextEditingController();
+  TextEditingController themeController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
@@ -1188,6 +1805,207 @@ class SettingsState extends State<SettingsPage> {
         title: const Text("User Settings"),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.only(top: 110.0),
+              child: Column(
+                children: [
+                  SizedBox(
+                    width: 200,
+                    height: 100,
+                    child: Text(
+                      'Change options as desired:',
+                      style: TextStyle(fontSize: 15, color: Colors.green),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 15),
+              child: TextField(
+                controller: displayNameController,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Display Name',
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 110.0),
+              child: Column(
+                children: [
+                  SizedBox(
+                    width: 200,
+                    height: 100,
+                    child: Text(
+                      'Sort weights:',
+                      style: TextStyle(fontSize: 15, color: Colors.green),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 15),
+              child: TextField(
+                controller: importanceController,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Importance',
+                  hintText: 'Default 0.2',
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(
+                left: 15.0,
+                right: 15.0,
+                top: 15,
+                bottom: 0,
+              ),
+              //padding: EdgeInsets.symmetric(horizontal: 15),
+              child: TextField(
+                controller: dueDateController,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Due Date',
+                  hintText: 'Default 0.7',
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(
+                left: 15.0,
+                right: 15.0,
+                top: 15,
+                bottom: 0,
+              ),
+              //padding: EdgeInsets.symmetric(horizontal: 15),
+              child: TextField(
+                controller: timeController,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Time',
+                  hintText: 'Default 0.1',
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(
+                left: 15.0,
+                right: 15.0,
+                top: 15,
+                bottom: 0,
+              ),
+              //padding: EdgeInsets.symmetric(horizontal: 15),
+              child: TextField(
+                controller: themeController,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Theme',
+                  hintText: 'Default Dark',
+                ),
+              ),
+            ),
+
+            SizedBox(
+              height: 65,
+              width: 360,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 20.0),
+                child: ElevatedButton(
+                  child: Text(
+                    'Set',
+                    style: TextStyle(color: Colors.green, fontSize: 20),
+                  ),
+                  onPressed: () async {
+                    displayName = displayNameController.text;
+
+                    if (importanceController.text.isEmpty) {
+                      importance = 0.2;
+                    } else {
+                      importance = double.parse(importanceController.text);
+                    }
+
+                    if (dueDateController.text.isEmpty) {
+                      dueDate = 0.7;
+                    } else {
+                      dueDate = double.parse(dueDateController.text);
+                    }
+
+                    if (timeController.text.isEmpty) {
+                      time = 0.1;
+                    } else {
+                      time = double.parse(timeController.text);
+                    }
+
+                    if (themeController.text.isEmpty) {
+                      theme = 'Dark';
+                    } else {
+                      theme = themeController.text;
+                    }
+
+                    // Weights must equal one combined
+                    if ((importance + dueDate + time) != 1.0) {
+                      showDialog(
+                        context: context,
+                        builder: (BuildContext context) {
+                          return AlertDialog(
+                            title: Text('Error'),
+                            content: Text('Total weight sum must equal 1.0'),
+                            actions: [
+                              TextButton(
+                                child: Text('OK'),
+                                onPressed: () {
+                                  Navigator.of(context).pop();
+                                },
+                              ),
+                            ],
+                          );
+                        },
+                      );
+                    } else {
+                      int result = await optionAPI.patchCurrentUser(
+                        displayName,
+                        theme,
+                        importance,
+                        dueDate,
+                        time,
+                      );
+                      if (context.mounted != true) {
+                        return;
+                      }
+
+                      if (result != 200) {
+                        showDialog(
+                          context: context,
+                          builder: (BuildContext context) {
+                            return AlertDialog(
+                              title: Text('Error'),
+                              content: Text('Failed to update user settings'),
+                              actions: [
+                                TextButton(
+                                  child: Text('OK'),
+                                  onPressed: () {
+                                    Navigator.of(context).pop();
+                                  },
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      }
+                    }
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
