@@ -6,6 +6,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:table_calendar/table_calendar.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 
 //Global variables for cross-page states
 String displayName = "";
@@ -13,11 +15,58 @@ String userID = "";
 
 String token = "";
 
+String userTheme = "";
+
 //User preference settings
-String theme = "dark";
-double importanceWeight = 0;
-double dueDateWeight = 0;
-double timeWeight = 0;
+class SavedTheme{
+
+  String theme = "";
+  double textSize = 0.0;
+  
+  SavedTheme({required this.theme, required this.textSize});
+}
+
+final themeData = ValueNotifier(
+   SavedTheme(theme: 'light', textSize: 1.0),
+);
+
+ValueNotifier<double> textSizeNotifier = ValueNotifier(1.0);
+
+class TextSizeScale extends TextScaler {
+  const TextSizeScale(this.systemScaler, this.preferenceFactor);
+
+  final TextScaler systemScaler;
+  final double preferenceFactor;
+
+  @override
+  double get textScaleFactor => systemScaler.scale(1.0) * preferenceFactor;
+
+  @override
+  double scale(double fontSize) {
+    return systemScaler.scale(fontSize) * preferenceFactor;
+  }
+}
+
+String receiveTheme(String? theme){
+  switch (theme){
+    case 'light':
+      return 'light';
+    case 'dark':
+      return 'dark';
+    case 'botanical':
+      return 'botanical';
+    case 'highContrast':
+      return 'botanical';
+    default:
+      return 'light';
+  }
+}
+
+double receiveTextSize(double? textSize){
+  if(textSize == null || textSize <= 0 || textSize.isFinite == false) return 1.0;
+
+  return textSize.clamp(0.5, 3.0).toDouble();
+}
 
 void showError(BuildContext context, String message) {
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
@@ -50,6 +99,7 @@ class User {
     token = data['token'] as String;
     userID = (userInfo['_id'] ?? userInfo['id']) as String;
     displayName = userInfo['displayName'] as String? ?? '';
+
     return User(
       id: userID,
       name: displayName,
@@ -306,13 +356,14 @@ class TaskAPI {
 class OptionAPI {
   final String baseUrl = 'http://64.225.121.181';
 
-  Future<Map<String, dynamic>> getCurrentUser() async {
+  Future<String> getCurrentUserTheme() async {
     final response = await http.get(
       Uri.parse('$baseUrl/api/users/me'),
       headers: _apiHeaders(authenticated: true),
     );
     if (response.statusCode == 200) {
-      return Map<String, dynamic>.from(json.decode(response.body) as Map);
+      final Map<String, dynamic> userInfo = Map<String, dynamic>.from(json.decode(response.body) as Map);
+      return userInfo['settings']['theme'] as String? ?? '';
     } else {
       throw Exception('Loading settings failed: ${response.statusCode}');
     }
@@ -530,26 +581,82 @@ class TaskCard extends StatelessWidget {
   }
 }
 
-void main() {
-  runApp(
-    MaterialApp(
-      initialRoute: '/',
-      routes: {
-        '/': (context) => const LoginPage(),
-        '/home': (context) => const HomePage(),
-        '/newitem': (context) => const NewItemPage(),
-        '/register': (context) => const RegisterPage(),
-        '/email': (context) => const EmailCodeConfirm(),
-        '/password': (context) => const PasswordConfirmationSend(),
-        '/passwordcode': (context) => PasswordCodeConfirm(),
-        '/createGroup': (context) => const NewGroupPage(),
-        '/settings': (context) => const SettingsPage(),
-      },
-      debugShowCheckedModeBanner: false,
-    ),
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final prefs = await SharedPreferences.getInstance();
+  themeData.value = SavedTheme(
+    theme: receiveTheme(prefs.getString('theme')),
+    textSize: receiveTextSize(prefs.getDouble('textSize')),
   );
+
+  runApp(CombinedMain());
 }
 
+class CombinedMain extends StatelessWidget {
+  const CombinedMain({super.key});
+
+  static final ThemeData lightMode = ThemeData(
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: Colors.green,
+      brightness: Brightness.light,
+    ),
+  );
+
+  static final ThemeData darkMode = ThemeData(
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: const Color.fromARGB(255, 40, 85, 42),
+      brightness: Brightness.dark,
+    ),
+  );
+
+  static final ThemeData highContrastMode = ThemeData(
+    colorScheme: const ColorScheme.highContrastLight(),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<SavedTheme>(
+      valueListenable: themeData,
+      builder: (context, preferences, _) {
+        return MaterialApp(
+          theme: preferences.theme == 'botanical'
+              ? highContrastMode
+              : lightMode,
+          darkTheme: darkMode,
+          themeMode: preferences.theme == 'dark'
+              ? ThemeMode.dark
+              : ThemeMode.light,
+          builder: (context, child) {
+            final media = MediaQuery.of(context);
+            return MediaQuery(
+              data: media.copyWith(
+                textScaler: TextSizeScale(
+                  media.textScaler,
+                  preferences.textSize,
+                ),
+              ),
+              child: child ?? const SizedBox.shrink(),
+            );
+          },
+          initialRoute: '/',
+          routes: {
+            '/': (context) => const LoginPage(),
+            '/home': (context) => const HomePage(),
+            '/newitem': (context) => const NewItemPage(),
+            '/register': (context) => const RegisterPage(),
+            '/email': (context) => const EmailCodeConfirm(),
+            '/password': (context) => const PasswordConfirmationSend(),
+            '/passwordcode': (context) => PasswordCodeConfirm(),
+            '/createGroup': (context) => const NewGroupPage(),
+            '/settings': (context) => const SettingsPage(),
+          },
+          debugShowCheckedModeBanner: false,
+        );
+      },
+    );
+  }
+}
 mixin TaskActions<T extends StatefulWidget> on State<T> {
   TaskAPI get taskAPI;
   Future<List<Task>> get loadedTasks;
@@ -1034,6 +1141,28 @@ class LoginPageState extends State<LoginPage> {
   final passwordController = TextEditingController();
 
   final LoginAPI login = LoginAPI();
+  OptionAPI optionAPI = OptionAPI();
+
+  Future<void> loadSavedTheme() async {
+  final serverTheme = await optionAPI.getCurrentUserTheme();
+
+  if (serverTheme.isEmpty) {
+    throw FormatException('No theme was returned by the server');
+  }
+
+  final checkTheme = receiveTheme(serverTheme);
+  final sharedPreferences = await SharedPreferences.getInstance();
+  final savedLocally = await sharedPreferences.setString('theme', checkTheme);
+
+  if (savedLocally == false) {
+    throw StateError('Could not cache the server theme on this device');
+  }
+
+  themeData.value = SavedTheme(
+    theme: checkTheme,
+    textSize: themeData.value.textSize,
+  );
+}
 
   @override
   void dispose() {
@@ -1170,6 +1299,22 @@ class LoginPageState extends State<LoginPage> {
 
                             if (attempt != null) {
                               if (attempt.isVerified == true) {
+
+                              try{
+                                await loadSavedTheme();
+                              } catch (error, stackTrace) {
+                                debugPrint('User theme load failure: $error');
+                                debugPrintStack(stackTrace: stackTrace);
+
+                                if (context.mounted) {
+    showError(context, 'Could not load your saved theme; using the last saved setting.');
+  }
+                              }
+
+                                if(context.mounted == false){
+                                  return;
+                                }
+
                                 Navigator.pushNamed(context, '/home');
                               } else {
                                 Navigator.pushNamed(context, '/email');
@@ -2397,7 +2542,9 @@ class SettingsPage extends StatefulWidget {
 }
 
 class SettingsState extends State<SettingsPage> {
-  String theme = "dark";
+  String theme = themeData.value.theme;
+  double textSize = themeData.value.textSize;
+
   double importance = 0.2;
   double dueDate = 0.7;
   double time = 0.1;
@@ -2484,7 +2631,7 @@ class SettingsState extends State<SettingsPage> {
                       DropdownMenuItem(value: "dark", child: Text("Dark")),
                       DropdownMenuItem(
                         value: "botanical",
-                        child: Text("Botanical"),
+                        child: Text("High Contrast"),
                       ),
                     ],
                     onChanged: (value) {
@@ -2493,6 +2640,19 @@ class SettingsState extends State<SettingsPage> {
                       });
                     },
                   ),
+                  Text('Text size: ${textSize.toStringAsFixed(2)}x'),
+Slider(
+  value: receiveTextSize(textSize),
+  min: 0.5,
+  max: 3.0,
+  divisions: 25,
+  label: '${textSize.toStringAsFixed(2)}x',
+  onChanged: (value) {
+    setState(() {
+      textSize = value;
+    });
+  },
+),
                   SizedBox(
                     height: 45,
 
@@ -2552,6 +2712,38 @@ class SettingsState extends State<SettingsPage> {
                             },
                           );
                         } else {
+
+                          final sharedPreferences = await SharedPreferences.getInstance();
+                          final themeLocal = await sharedPreferences.setString('theme', theme);
+                          final textSizeLocal = await sharedPreferences.setDouble('textSize', textSize);
+
+                          if(context.mounted == false) {
+                            return;
+                          }
+
+                          if(themeLocal != true || textSizeLocal != true) {
+                            showDialog(
+                              context: context,
+                              builder: (BuildContext context) {
+                                return AlertDialog(
+                                  title: Text('Error'),
+                                  content: Text('Failed to save local settings'),
+                                  actions: [
+                                    TextButton(
+                                      child: Text('OK'),
+                                      onPressed: () {
+                                        Navigator.of(context).pop();
+                                      },
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                            return;
+                          }
+
+                          themeData.value = SavedTheme(theme: theme, textSize: textSize);
+
                           Navigator.of(context).pop();
                         }
                       },
