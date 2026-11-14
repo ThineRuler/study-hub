@@ -1,0 +1,55 @@
+name: Code Quality & Linting
+
+on:
+  push:
+    branches:
+      - main
+      - linting
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint-web:
+    name: Lint JavaScript & TypeScript (.js, .tsx)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Run linter on .js, .ts, and .tsx files
+        run: |
+          echo "Linting JavaScript and TypeScript/React files..."
+          npx --yes oxlint@latest .
+
+  lint-dart:
+    name: Lint Dart (.dart)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Flutter dependencies
+        run: |
+          cd mobile
+          flutter pub get
+
+      - name: Run Flutter Analyzer (Dart linting)
+        run: |
+          cd mobile
+          flutter analyze
