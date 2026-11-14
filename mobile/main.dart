@@ -254,11 +254,11 @@ class TaskAPI {
   }
 
   Future<Group?> patchGroup(
-    String id, {
+    String id,
     String? name,
     String? color,
     int? sortOrder,
-  }) async {
+  ) async {
     final body = <String, dynamic>{
       'name': ?name,
       'color': ?color,
@@ -283,6 +283,23 @@ class TaskAPI {
       headers: _apiHeaders(authenticated: true),
     );
     return response.statusCode == 204 ? 204 : 1;
+  }
+
+  Future<List<Task>> searchTasks(String part) async {
+    final uriChunk = Uri.parse('$baseUrl/api/search')
+        .replace(queryParameters: {'q': part, 'type': 'tasks'});
+
+    final response = await http.get(
+      uriChunk,
+      headers: _apiHeaders(authenticated: true),
+    );
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body) as Map<String, dynamic>;
+      final tasks = data['tasks'] as List;
+      return tasks.map((item) => Task.fromJson(item)).toList();
+    } else {
+      throw Exception('Search tasks failed: ${response.statusCode}');
+    }
   }
 }
 
@@ -481,9 +498,9 @@ class TaskCard extends StatelessWidget {
         title: Text(task.name),
         subtitle: Text(
           (task.description ?? '') +
-              '\n  Confidence' +
+              '\nConfidence' +
               task.importance.toString() +
-              '/10   Due ' +
+              '/1   Due ' +
               (task.dueDate ?? 'N/A'),
         ),
 
@@ -516,20 +533,20 @@ class TaskCard extends StatelessWidget {
 void main() {
   runApp(
     MaterialApp(
-        initialRoute: '/',
-        routes: {
-          '/': (context) => const LoginPage(),
-          '/home': (context) => const HomePage(),
-          '/newitem': (context) => const NewItemPage(),
-          '/register': (context) => const RegisterPage(),
-          '/email': (context) => const EmailCodeConfirm(),
-          '/password': (context) => const PasswordConfirmationSend(),
-          '/passwordcode': (context) => PasswordCodeConfirm(),
-          '/createGroup': (context) => const NewGroupPage(),
-          '/settings': (context) => const SettingsPage(),
-        },
-        debugShowCheckedModeBanner: false,
-      ),
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const LoginPage(),
+        '/home': (context) => const HomePage(),
+        '/newitem': (context) => const NewItemPage(),
+        '/register': (context) => const RegisterPage(),
+        '/email': (context) => const EmailCodeConfirm(),
+        '/password': (context) => const PasswordConfirmationSend(),
+        '/passwordcode': (context) => PasswordCodeConfirm(),
+        '/createGroup': (context) => const NewGroupPage(),
+        '/settings': (context) => const SettingsPage(),
+      },
+      debugShowCheckedModeBanner: false,
+    ),
   );
 }
 
@@ -592,18 +609,35 @@ class HomePage extends StatefulWidget {
 class HomePageState extends State<HomePage> with TaskActions<HomePage> {
   @override
   TaskAPI taskAPI = TaskAPI();
-  
+
   @override
   Future<List<Task>> loadedTasks = Future.value([]);
+  Future<List<Task>> searchedTasks = Future.value([]);
   Future<List<Group>> loadedGroups = Future.value([]);
 
   int currentPageIndex = 0;
   int apiStatus = 0;
 
+  TextEditingController searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    searchController.dispose();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
     loadedTasks = taskAPI.getTasks();
+    searchedTasks = loadedTasks;
+  }
+
+  void taskRefresh() {
+    loadedTasks = taskAPI.getTasks();
+    if (currentPageIndex == 0) {
+      searchedTasks = loadedTasks;
+    }
   }
 
   Future<void> openPage(String route) async {
@@ -613,15 +647,15 @@ class HomePageState extends State<HomePage> with TaskActions<HomePage> {
       if (currentPageIndex == 0 ||
           currentPageIndex == 1 ||
           currentPageIndex == 4) {
-        loadedTasks = taskAPI.getTasks();
+        taskRefresh();
       }
       if (currentPageIndex == 3) loadedGroups = taskAPI.getGroups();
     });
   }
 
-  Widget taskList({bool? completed}) {
+  Widget taskList({bool? completed, Future<List<Task>>? taskSet}) {
     return FutureBuilder<List<Task>>(
-      future: loadedTasks,
+      future: taskSet ?? loadedTasks,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Center(child: CircularProgressIndicator());
@@ -629,12 +663,19 @@ class HomePageState extends State<HomePage> with TaskActions<HomePage> {
         if (snapshot.hasError) {
           return Center(child: Text('Error: ${snapshot.error}'));
         }
-        final tasks = (snapshot.data ?? <Task>[])
-            .where((task) => completed == null || task.completed == completed)
-            .toList();
+
+        final tasks = (snapshot.data ?? <Task>[]).where((task) {
+          if (currentPageIndex == 1) {
+            if (completed != null && task.completed != true) return true;
+          } else {
+            if (completed != null && task.completed != completed) return false;
+          }
+          return true;
+        }).toList();
         if (tasks.isEmpty) {
           return Center(child: Text('No tasks available'));
         }
+
         return ListView.builder(
           itemCount: tasks.length,
           itemBuilder: (context, index) {
@@ -702,12 +743,50 @@ class HomePageState extends State<HomePage> with TaskActions<HomePage> {
                   },
                   child: Text('View Group'),
                 ),
+                trailing: PopupMenuButton<String>(
+                  icon: const Icon(Icons.expand_circle_down_outlined),
+                  tooltip: 'Task actions',
+                  onSelected: (action) {
+                    if (action == 'edit') {
+                      groupEdit(group);
+                    } else if (action == 'delete') {
+                      groupDelete(group);
+                    }
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(value: 'edit', child: Text('Edit')),
+                    PopupMenuItem(value: 'delete', child: Text('Delete')),
+                  ],
+                ),
               ),
             );
           },
         );
       },
     );
+  }
+
+  Future<void> groupEdit(Group group) async {
+    final saved = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => EditGroupPage(group: group)),
+    );
+    if (!mounted || saved != true) return;
+  }
+
+  Future<void> groupDelete(Group group) async {
+    try {
+      final status = await taskAPI.deleteGroup(group.id);
+      if (!mounted) return;
+      if (status != 204) {
+        showError(context, 'Could not delete group.');
+        return;
+      }
+    } catch (error, stackTrace) {
+      debugPrint('Group deletion failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (mounted) showError(context, 'Could not delete group.');
+    }
   }
 
   @override
@@ -766,10 +845,31 @@ class HomePageState extends State<HomePage> with TaskActions<HomePage> {
       body: <Widget>[
         /// Home page
         ///
+        ///
+        Column(
+          children: [
+            TextField(
+              controller: searchController,
+              decoration: InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+                hintText: 'Search Tasks by name',
+              ),
+              onChanged: (value) {
+                setState(() {
+                  if (value.isNotEmpty) {
+                    searchedTasks = taskAPI.searchTasks(value);
+                  } else {
+                    searchedTasks = loadedTasks;
+                  }
+                });
+              },
+            ),
+            Expanded(child: taskList(taskSet: searchedTasks)),
+          ],
+        ),
 
-        taskList(),
-
-        /// Notifications page
+        /// Calendar page
         Padding(
           padding: EdgeInsets.all(8.0),
           child: Column(
@@ -786,33 +886,36 @@ class HomePageState extends State<HomePage> with TaskActions<HomePage> {
         ),
 
         ///New item
-        SizedBox(
-          height: 65,
-          width: 360,
+        Padding(
+          padding: EdgeInsets.all(8.0),
           child: Row(
             children: [
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 20.0),
-                  child: ElevatedButton(
-                    child: Text(
-                      'Enter new item page',
-                      style: TextStyle(color: Colors.green, fontSize: 20),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 20.0),
+                      child: ElevatedButton(
+                        child: Text(
+                          'Enter new item page',
+                          style: TextStyle(color: Colors.green, fontSize: 20),
+                        ),
+                        onPressed: () => openPage('/newitem'),
+                      ),
                     ),
-                    onPressed: () => openPage('/newitem'),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 20.0),
-                  child: ElevatedButton(
-                    child: Text(
-                      'Enter new group page',
-                      style: TextStyle(color: Colors.green, fontSize: 20),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 20.0),
+                      child: ElevatedButton(
+                        child: Text(
+                          'Enter new group page',
+                          style: TextStyle(color: Colors.green, fontSize: 20),
+                        ),
+                        onPressed: () => openPage('/createGroup'),
+                      ),
                     ),
-                    onPressed: () => openPage('/createGroup'),
-                  ),
+                  ],
                 ),
               ),
             ],
@@ -825,6 +928,7 @@ class HomePageState extends State<HomePage> with TaskActions<HomePage> {
           child: Column(children: <Widget>[Expanded(child: groupList())]),
         ),
 
+        //Archive page
         Padding(
           padding: EdgeInsets.all(8.0),
           child: Column(
@@ -1203,7 +1307,7 @@ class NewItemState extends State<NewItemPage> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.only(top: 110.0),
+              padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
                   Text("Group:"),
@@ -1303,16 +1407,12 @@ class NewItemState extends State<NewItemPage> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.only(top: 110.0),
+              padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
-                  SizedBox(
-                    width: 200,
-                    height: 100,
-                    child: Text(
-                      'Time Estimate:',
-                      style: TextStyle(fontSize: 15, color: Colors.green),
-                    ),
+                  Text(
+                    'Time Estimate:',
+                    style: TextStyle(fontSize: 15, color: Colors.green),
                   ),
                 ],
               ),
@@ -1332,70 +1432,74 @@ class NewItemState extends State<NewItemPage> {
                 },
               ),
             ),
-            SizedBox(
-              height: 65,
-              width: 360,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 20.0),
-                child: ElevatedButton(
-                  child: Text(
-                    'Submit',
-                    style: TextStyle(color: Colors.green, fontSize: 20),
-                  ),
-                  onPressed: () async {
-                    final name = taskName.trim();
-                    final date = dueDate.trim();
-                    if (name.isEmpty || estPomodoros < 1 || !validDate(date)) {
-                      showError(
-                        context,
-                        'Enter a name, a positive estimate, and a valid YYYY-MM-DD date.',
-                      );
-                      return;
-                    }
-                    try {
-                      taskSuccess = await taskAPI.createTask(
-                        name,
-                        importance,
-                        estPomodoros,
-                        description,
-                        groupId.isEmpty ? null : groupId,
-                        date.isEmpty ? null : date,
-                      );
-                    } catch (error, stackTrace) {
-                      debugPrint('Task creation failed: $error');
-                      debugPrintStack(stackTrace: stackTrace);
-                      if (context.mounted) {
-                        showError(context, 'Could not create task.');
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: SizedBox(
+                width: double.infinity,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: ElevatedButton(
+                    child: Text(
+                      'Submit',
+                      style: TextStyle(color: Colors.green, fontSize: 20),
+                    ),
+                    onPressed: () async {
+                      final name = taskName.trim();
+                      final date = dueDate.trim();
+                      if (name.isEmpty ||
+                          estPomodoros < 1 ||
+                          !validDate(date)) {
+                        showError(
+                          context,
+                          'Enter a name, a positive estimate, and a valid YYYY-MM-DD date.',
+                        );
+                        return;
                       }
-                      return;
-                    }
+                      try {
+                        taskSuccess = await taskAPI.createTask(
+                          name,
+                          importance,
+                          estPomodoros,
+                          description,
+                          groupId.isEmpty ? null : groupId,
+                          date.isEmpty ? null : date,
+                        );
+                      } catch (error, stackTrace) {
+                        debugPrint('Task creation failed: $error');
+                        debugPrintStack(stackTrace: stackTrace);
+                        if (context.mounted) {
+                          showError(context, 'Could not create task.');
+                        }
+                        return;
+                      }
 
-                    if (context.mounted != true) {
-                      return;
-                    }
+                      if (context.mounted != true) {
+                        return;
+                      }
 
-                    if (taskSuccess == 201) {
-                      Navigator.of(context).pop();
-                    } else {
-                      showDialog(
-                        context: context,
-                        builder: (BuildContext context) {
-                          return AlertDialog(
-                            title: Text('Error'),
-                            content: Text('Error with task creation'),
-                            actions: [
-                              TextButton(
-                                child: Text('OK'),
-                                onPressed: () {
-                                  Navigator.of(context).pop();
-                                },
-                              ),
-                            ],
-                          );
-                        },
-                      );
-                    }
-                  },
+                      if (taskSuccess == 201) {
+                        Navigator.of(context).pop();
+                      } else {
+                        showDialog(
+                          context: context,
+                          builder: (BuildContext context) {
+                            return AlertDialog(
+                              title: Text('Error'),
+                              content: Text('Error with task creation'),
+                              actions: [
+                                TextButton(
+                                  child: Text('OK'),
+                                  onPressed: () {
+                                    Navigator.of(context).pop();
+                                  },
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      }
+                    },
+                  ),
                 ),
               ),
             ),
@@ -1540,7 +1644,6 @@ class EditTaskPageState extends State<EditTaskPage> {
                     onPressed: saving ? null : save,
                     child: Text('Save'),
                   ),
-                  // Add other fields for editing task here
                 ],
               ),
             ),
@@ -1580,7 +1683,6 @@ class NewGroupState extends State<NewGroupPage> {
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
-                  Text('Name:'),
                   TextField(
                     onChanged: (value) {
                       setState(() {
@@ -1638,6 +1740,108 @@ class NewGroupState extends State<NewGroupPage> {
                       }
                     },
                     child: Text("Create Group"),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class EditGroupPage extends StatefulWidget {
+  final Group group;
+
+  const EditGroupPage({super.key, required this.group});
+
+  @override
+  EditGroupState createState() => EditGroupState();
+}
+
+class EditGroupState extends State<EditGroupPage> {
+  TaskAPI taskAPI = TaskAPI();
+
+  late String groupName;
+  late String groupColor;
+
+  @override
+  void initState() {
+    super.initState();
+    groupName = widget.group.name;
+    groupColor = widget.group.color;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Edit Group"),
+        backgroundColor: Colors.green,
+        foregroundColor: Colors.white,
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  TextField(
+                    onChanged: (value) {
+                      setState(() {
+                        groupName = value;
+                      });
+                    },
+                    decoration: InputDecoration(labelText: 'Group Name'),
+                  ),
+                  DropdownButton<String>(
+                    value: groupColor,
+                    items: const [
+                      DropdownMenuItem(value: "#10B981", child: Text("Green")),
+                      DropdownMenuItem(value: "#F59E0B", child: Text("Orange")),
+                      DropdownMenuItem(value: "#3B82F6", child: Text("Blue")),
+                      DropdownMenuItem(value: "#8B5CF6", child: Text("Purple")),
+                      DropdownMenuItem(value: "#EC4899", child: Text("Pink")),
+                      DropdownMenuItem(value: "#6B7280", child: Text("Grey")),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        groupColor = value!;
+                      });
+                    },
+                  ),
+
+                  ElevatedButton(
+                    onPressed: () async {
+                      final name = groupName.trim();
+                      if (name.isEmpty) {
+                        showError(context, 'Enter a group name.');
+                        return;
+                      }
+                      try {
+                        final status = await taskAPI.patchGroup(
+                          widget.group.id,
+                          groupName,
+                          groupColor,
+                          widget.group.sortOrder,
+                        );
+                        if (!context.mounted) return;
+                        if (status != null) {
+                          Navigator.of(context).pop(true);
+                        } else {
+                          showError(context, 'Could not edit group.');
+                        }
+                      } catch (error, stackTrace) {
+                        debugPrint('Group creation failed: $error');
+                        debugPrintStack(stackTrace: stackTrace);
+                        if (context.mounted) {
+                          showError(context, 'Could not edit group.');
+                        }
+                      }
+                    },
+                    child: Text("Edit Group"),
                   ),
                 ],
               ),
@@ -2226,201 +2430,134 @@ class SettingsState extends State<SettingsPage> {
         foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             Padding(
               padding: const EdgeInsets.only(top: 110.0),
               child: Column(
                 children: [
-                  SizedBox(
-                    width: 200,
-                    height: 100,
-                    child: Text(
-                      'Change options as desired:',
-                      style: TextStyle(fontSize: 15, color: Colors.green),
+                  Text(
+                    'Change options as desired:',
+                    style: TextStyle(fontSize: 15, color: Colors.green),
+                  ),
+                  TextField(
+                    controller: displayNameController,
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(),
+                      labelText: 'Display Name',
                     ),
                   ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 15),
-              child: TextField(
-                controller: displayNameController,
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Display Name',
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(top: 110.0),
-              child: Column(
-                children: [
-                  SizedBox(
-                    width: 200,
-                    height: 100,
-                    child: Text(
-                      'Sort weights:',
-                      style: TextStyle(fontSize: 15, color: Colors.green),
+                  Text(
+                    'Sort weights:',
+                    style: TextStyle(fontSize: 15, color: Colors.green),
+                  ),
+                  TextField(
+                    controller: importanceController,
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(),
+                      labelText: 'Importance',
+                      hintText: 'Default 0.2',
                     ),
                   ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 15),
-              child: TextField(
-                controller: importanceController,
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Importance',
-                  hintText: 'Default 0.2',
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(
-                left: 15.0,
-                right: 15.0,
-                top: 15,
-                bottom: 0,
-              ),
-              //padding: EdgeInsets.symmetric(horizontal: 15),
-              child: TextField(
-                controller: dueDateController,
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Due Date',
-                  hintText: 'Default 0.7',
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(
-                left: 15.0,
-                right: 15.0,
-                top: 15,
-                bottom: 0,
-              ),
-              //padding: EdgeInsets.symmetric(horizontal: 15),
-              child: TextField(
-                controller: timeController,
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Time',
-                  hintText: 'Default 0.1',
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(
-                left: 15.0,
-                right: 15.0,
-                top: 15,
-                bottom: 0,
-              ),
-              //padding: EdgeInsets.symmetric(horizontal: 15),
-              child: TextField(
-                controller: themeController,
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Theme',
-                  hintText: 'Default Dark',
-                ),
-              ),
-            ),
-
-            SizedBox(
-              height: 65,
-              width: 360,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 20.0),
-                child: ElevatedButton(
-                  child: Text(
-                    'Set',
-                    style: TextStyle(color: Colors.green, fontSize: 20),
+                  TextField(
+                    controller: dueDateController,
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(),
+                      labelText: 'Due Date',
+                      hintText: 'Default 0.7',
+                    ),
                   ),
-                  onPressed: () async {
-                    displayName = displayNameController.text;
+                  TextField(
+                    controller: timeController,
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(),
+                      labelText: 'Time',
+                      hintText: 'Default 0.1',
+                    ),
+                  ),
+                  DropdownButton<String>(
+                    value: theme,
+                    items: const [
+                      DropdownMenuItem(value: "light", child: Text("Light")),
+                      DropdownMenuItem(value: "dark", child: Text("Dark")),
+                      DropdownMenuItem(
+                        value: "botanical",
+                        child: Text("Botanical"),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        theme = value!;
+                      });
+                    },
+                  ),
+                  SizedBox(
+                    height: 45,
 
-                    if (importanceController.text.isEmpty) {
-                      importance = 0.2;
-                    } else {
-                      importance = double.parse(importanceController.text);
-                    }
+                    child: ElevatedButton(
+                      child: Text(
+                        'Set',
+                        style: TextStyle(color: Colors.green, fontSize: 20),
+                      ),
+                      onPressed: () async {
+                        displayName = displayNameController.text;
 
-                    if (dueDateController.text.isEmpty) {
-                      dueDate = 0.7;
-                    } else {
-                      dueDate = double.parse(dueDateController.text);
-                    }
+                        if (importanceController.text.isEmpty) {
+                          importance = 0.2;
+                        } else {
+                          importance = double.parse(importanceController.text);
+                        }
 
-                    if (timeController.text.isEmpty) {
-                      time = 0.1;
-                    } else {
-                      time = double.parse(timeController.text);
-                    }
+                        if (dueDateController.text.isEmpty) {
+                          dueDate = 0.7;
+                        } else {
+                          dueDate = double.parse(dueDateController.text);
+                        }
 
-                    if (themeController.text.isEmpty) {
-                      theme = 'Dark';
-                    } else {
-                      theme = themeController.text;
-                    }
+                        if (timeController.text.isEmpty) {
+                          time = 0.1;
+                        } else {
+                          time = double.parse(timeController.text);
+                        }
 
-                    // Weights must equal one combined
-                    if ((importance + dueDate + time) != 1.0) {
-                      showDialog(
-                        context: context,
-                        builder: (BuildContext context) {
-                          return AlertDialog(
-                            title: Text('Error'),
-                            content: Text('Total weight sum must equal 1.0'),
-                            actions: [
-                              TextButton(
-                                child: Text('OK'),
-                                onPressed: () {
-                                  Navigator.of(context).pop();
-                                },
-                              ),
-                            ],
-                          );
-                        },
-                      );
-                    } else {
-                      int result = await optionAPI.patchCurrentUser(
-                        displayName,
-                        theme,
-                        importance,
-                        dueDate,
-                        time,
-                      );
-                      if (context.mounted != true) {
-                        return;
-                      }
-
-                      if (result != 200) {
-                        showDialog(
-                          context: context,
-                          builder: (BuildContext context) {
-                            return AlertDialog(
-                              title: Text('Error'),
-                              content: Text('Failed to update user settings'),
-                              actions: [
-                                TextButton(
-                                  child: Text('OK'),
-                                  onPressed: () {
-                                    Navigator.of(context).pop();
-                                  },
-                                ),
-                              ],
-                            );
-                          },
+                        int result = await optionAPI.patchCurrentUser(
+                          displayName,
+                          theme,
+                          importance,
+                          dueDate,
+                          time,
                         );
-                      }
-                    }
-                  },
-                ),
+                        if (context.mounted != true) {
+                          return;
+                        }
+
+                        if (result != 200) {
+                          showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return AlertDialog(
+                                title: Text('Error'),
+                                content: Text('Failed to update user settings'),
+                                actions: [
+                                  TextButton(
+                                    child: Text('OK'),
+                                    onPressed: () {
+                                      Navigator.of(context).pop();
+                                    },
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+                        } else {
+                          Navigator.of(context).pop();
+                        }
+                      },
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
