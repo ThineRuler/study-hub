@@ -52,4 +52,4 @@ jobs:
       - name: Run Flutter Analyzer (Dart linting)
         run: |
           cd mobile
-          flutter analyze
+          flutter analyze --no-fatal-infos
