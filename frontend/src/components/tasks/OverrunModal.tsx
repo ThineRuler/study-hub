@@ -1,7 +1,7 @@
 import React from 'react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
-import { AlertTriangle, SplitSquareVertical, ArrowRight } from 'lucide-react';
+import { AlertTriangle, SplitSquareVertical } from 'lucide-react';
 
 interface OverrunModalProps {
   isOpen: boolean;

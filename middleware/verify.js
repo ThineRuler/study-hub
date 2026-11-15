@@ -15,7 +15,7 @@ module.exports = function auth(req, res, next) {
     // Maps the token's userId payload to req.user.id
     req.user = { id: decoded.userId };
     next();
-  } catch (err) {
+  } catch {
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
 };

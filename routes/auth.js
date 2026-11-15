@@ -183,7 +183,7 @@ router.get('/verify-email', async (req, res, next) => {
     let decoded;
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
-    } catch (jwtError) {
+    } catch {
       const error = new Error('Invalid or expired verification token');
       error.statusCode = 400;
       throw error;
@@ -532,7 +532,7 @@ router.get('/reset-password', async (req, res, next) => {
     const resetSecret = process.env.JWT_SECRET + user.passwordHash;
     try {
       jwt.verify(token, resetSecret);
-    } catch (err) {
+    } catch {
       const error = new Error('Password reset link is invalid or has expired');
       error.statusCode = 400;
       throw error;
@@ -614,7 +614,7 @@ router.post('/reset-password', async (req, res, next) => {
 
     try {
       jwt.verify(token, resetSecret);
-    } catch (err) {
+    } catch {
       const error = new Error('Password reset link is invalid or has expired');
       error.statusCode = 400;
       throw error;

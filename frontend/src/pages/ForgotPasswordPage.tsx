@@ -22,7 +22,7 @@ export const ForgotPasswordPage: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  const [infoMessage, setInfoMessage] = useState('');
+  const [infoMessage, _setInfoMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   // 30s resend timer

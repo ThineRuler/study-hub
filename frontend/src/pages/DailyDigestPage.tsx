@@ -16,7 +16,7 @@ export const DailyDigestPage: React.FC = () => {
   const { tasks, completedTasks, groups, toggleTask } = useTasks();
 
   const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const [timerSeconds, setTimerSeconds] = useState(25 * 60);
+  const [timerSeconds] = useState(25 * 60);
   const [showOverrunModal, setShowOverrunModal] = useState(false);
   const [overrunTaskName, setOverrunTaskName] = useState('');
 

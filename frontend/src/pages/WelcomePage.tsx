@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Sparkles, CheckCircle2, ArrowRight, Clock, BookOpen, Briefcase } from 'lucide-react';
+import { Sparkles, ArrowRight } from 'lucide-react';
 
 export const WelcomePage: React.FC = () => {
   return (
