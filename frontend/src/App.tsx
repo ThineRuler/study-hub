@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AccessibilityProvider } from './context/AccessibilityContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import { TaskProvider } from './context/TaskContext';
 
@@ -33,10 +34,11 @@ import { SearchPage } from './pages/SearchPage';
 
 export const App: React.FC = () => {
   return (
-    <AccessibilityProvider>
-      <AuthProvider>
-        <TaskProvider>
-          <BrowserRouter>
+    <ThemeProvider>
+      <AccessibilityProvider>
+        <AuthProvider>
+          <TaskProvider>
+            <BrowserRouter>
           <Routes>
             {/* Public Pages */}
             <Route element={<PublicLayout />}>
@@ -74,6 +76,7 @@ export const App: React.FC = () => {
       </TaskProvider>
     </AuthProvider>
     </AccessibilityProvider>
+    </ThemeProvider>
   );
 };
 

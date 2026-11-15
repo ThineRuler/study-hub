@@ -9,7 +9,8 @@ interface AccessibilityContextType {
 
 const DEFAULT_SETTINGS: AccessibilitySettings = {
   highContrast: false,
-  font: 'inter',
+  dyslexiaFont: false,
+  boldText: false,
   fontScale: 100,
 };
 
@@ -21,7 +22,16 @@ export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({
   const [settings, setSettings] = useState<AccessibilitySettings>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          ...DEFAULT_SETTINGS,
+          ...parsed,
+          dyslexiaFont: parsed.dyslexiaFont ?? (parsed.font === 'dyslexic'),
+          boldText: parsed.boldText ?? false,
+        };
+      }
+      return DEFAULT_SETTINGS;
     } catch {
       return DEFAULT_SETTINGS;
     }
@@ -42,10 +52,17 @@ export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({
     }
 
     // Apply dyslexia font to html root
-    if (settings.font === 'dyslexic') {
+    if (settings.dyslexiaFont || settings.font === 'dyslexic') {
       document.documentElement.classList.add('font-dyslexic');
     } else {
       document.documentElement.classList.remove('font-dyslexic');
+    }
+
+    // Apply bold text mode to html root
+    if (settings.boldText) {
+      document.documentElement.classList.add('font-bold-mode');
+    } else {
+      document.documentElement.classList.remove('font-bold-mode');
     }
 
     // Apply font scale

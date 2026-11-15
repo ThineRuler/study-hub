@@ -2,7 +2,7 @@ import React from 'react';
 import { Modal } from './Modal';
 import { useAccessibility } from '../../context/AccessibilityContext';
 import { Button } from './Button';
-import { Eye, Type, Sliders, RotateCcw } from 'lucide-react';
+import { Eye, Type, Sliders, RotateCcw, Bold } from 'lucide-react';
 
 interface AccessibilityModalProps {
   isOpen: boolean;
@@ -20,11 +20,11 @@ export const AccessibilityModal: React.FC<AccessibilityModalProps> = ({ isOpen, 
       subtitle="Comfort and readability across the entire site, saved to this device."
       maxWidth="md"
     >
-      <div className="space-y-6">
+      <div className="space-y-5">
         {/* High Contrast Toggle */}
         <div className="flex items-center justify-between p-3.5 rounded-xl border border-surface-border bg-surface-subtle/50">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-white text-sage-700 shadow-xs">
+            <div className="p-2 rounded-lg bg-white dark:bg-surface-card text-sage-700 dark:text-sage-300 shadow-xs">
               <Eye className="w-5 h-5" />
             </div>
             <div>
@@ -49,35 +49,65 @@ export const AccessibilityModal: React.FC<AccessibilityModalProps> = ({ isOpen, 
           </button>
         </div>
 
-        {/* Reading Font Selection */}
-        <div>
-          <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-content-secondary mb-2">
-            <Type className="w-4 h-4 text-sage-600" />
-            Reading Font
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { id: 'inter', label: 'Inter (Default)' },
-              { id: 'dyslexic', label: 'Dyslexia Friendly' },
-              { id: 'system', label: 'System Sans' },
-            ].map((f) => (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => updateSettings({ font: f.id as any })}
-                className={`
-                  p-3 rounded-xl border text-xs font-medium text-center transition-all
-                  ${
-                    settings.font === f.id
-                      ? 'border-sage-600 bg-sage-50 text-sage-900 font-bold ring-1 ring-sage-600'
-                      : 'border-surface-border bg-white text-content-secondary hover:border-sage-300'
-                  }
-                `}
-              >
-                {f.label}
-              </button>
-            ))}
+        {/* Dyslexia Mode Toggle */}
+        <div className="flex items-center justify-between p-3.5 rounded-xl border border-surface-border bg-surface-subtle/50">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-white dark:bg-surface-card text-sage-700 dark:text-sage-300 shadow-xs">
+              <Type className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-content-primary">Dyslexia Mode</p>
+              <p className="text-xs text-content-secondary">Switches to OpenDyslexic for distinct letter weighting</p>
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={() =>
+              updateSettings({
+                dyslexiaFont: !settings.dyslexiaFont,
+                font: !settings.dyslexiaFont ? 'dyslexic' : 'inter',
+              })
+            }
+            className={`
+              relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out
+              ${settings.dyslexiaFont ? 'bg-sage-600' : 'bg-surface-border'}
+            `}
+          >
+            <span
+              className={`
+                pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out
+                ${settings.dyslexiaFont ? 'translate-x-5' : 'translate-x-0'}
+              `}
+            />
+          </button>
+        </div>
+
+        {/* Bold Text Toggle */}
+        <div className="flex items-center justify-between p-3.5 rounded-xl border border-surface-border bg-surface-subtle/50">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-white dark:bg-surface-card text-sage-700 dark:text-sage-300 shadow-xs">
+              <Bold className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-content-primary">Bold Text</p>
+              <p className="text-xs text-content-secondary">Increases font weight for enhanced visual clarity</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => updateSettings({ boldText: !settings.boldText })}
+            className={`
+              relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out
+              ${settings.boldText ? 'bg-sage-600' : 'bg-surface-border'}
+            `}
+          >
+            <span
+              className={`
+                pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out
+                ${settings.boldText ? 'translate-x-5' : 'translate-x-0'}
+              `}
+            />
+          </button>
         </div>
 
         {/* Font Scaling */}
@@ -87,7 +117,7 @@ export const AccessibilityModal: React.FC<AccessibilityModalProps> = ({ isOpen, 
               <Sliders className="w-4 h-4 text-sage-600" />
               Global Font Scaling
             </label>
-            <span className="text-xs font-bold text-sage-700 bg-sage-100 px-2 py-0.5 rounded-full">
+            <span className="text-xs font-bold text-sage-700 dark:text-sage-300 bg-sage-100 dark:bg-sage-900 px-2 py-0.5 rounded-full">
               {settings.fontScale}%
             </span>
           </div>
@@ -108,9 +138,9 @@ export const AccessibilityModal: React.FC<AccessibilityModalProps> = ({ isOpen, 
         </div>
 
         {/* Live Reading Preview Box */}
-        <div className="p-4 rounded-xl border border-sage-200 bg-sage-50/60">
-          <p className="text-xs font-semibold text-sage-800 uppercase tracking-wider mb-1">
-            Live Preview · {settings.fontScale}%
+        <div className="p-4 rounded-xl border border-sage-200 dark:border-sage-800 bg-sage-50/60 dark:bg-sage-900/30">
+          <p className="text-xs font-semibold text-sage-800 dark:text-sage-300 uppercase tracking-wider mb-1">
+            Live Preview · {settings.fontScale}% {settings.dyslexiaFont && '· OpenDyslexic'} {settings.boldText && '· Bold'}
           </p>
           <p className="text-sm font-medium text-content-primary">
             "A little forward. You don't have to finish everything today. Start with one clear, manageable step."

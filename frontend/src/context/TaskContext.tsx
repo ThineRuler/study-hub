@@ -13,7 +13,9 @@ interface TaskContextType {
   toggleTask: (id: string, currentCompleted: boolean) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
   createGroup: (name: string, color?: string) => Promise<GroupItem>;
+  updateGroup: (id: string, payload: { name?: string; color?: string; sortOrder?: number }) => Promise<GroupItem>;
   deleteGroup: (id: string) => Promise<void>;
+  reorderGroups: (newOrderedGroups: GroupItem[]) => Promise<void>;
 }
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
@@ -111,9 +113,32 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return created;
   };
 
+  const updateGroup = async (
+    id: string,
+    payload: { name?: string; color?: string; sortOrder?: number }
+  ): Promise<GroupItem> => {
+    const updated = await groupApi.updateGroup(id, payload);
+    setGroups((prev) => prev.map((g) => (g._id === id ? { ...g, ...updated } : g)));
+    return updated;
+  };
+
   const deleteGroup = async (id: string) => {
     await groupApi.deleteGroup(id);
     await refreshData();
+  };
+
+  const reorderGroups = async (newOrderedGroups: GroupItem[]) => {
+    setGroups(newOrderedGroups);
+    const orders = newOrderedGroups.map((g, index) => ({
+      id: g._id,
+      sortOrder: index,
+    }));
+    try {
+      await groupApi.reorderGroups(orders);
+    } catch (err) {
+      console.error('Failed to save group reorder to database:', err);
+      await refreshData();
+    }
   };
 
   return (
@@ -128,7 +153,9 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         toggleTask,
         deleteTask,
         createGroup,
+        updateGroup,
         deleteGroup,
+        reorderGroups,
       }}
     >
       {children}

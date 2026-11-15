@@ -27,8 +27,10 @@ export interface UserSettings {
 
 export interface AccessibilitySettings {
   highContrast: boolean;
-  font: 'inter' | 'dyslexic' | 'system';
+  dyslexiaFont: boolean;
+  boldText: boolean;
   fontScale: number; // 90 to 150
+  font?: 'inter' | 'dyslexic' | 'system';
 }
 
 export interface Subtask {

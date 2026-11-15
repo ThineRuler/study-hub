@@ -43,6 +43,19 @@ router.post('/', async (req, res) => {
   }
 });
 
+router.put('/reorder', async (req, res) => {
+  const { orders } = req.body;
+  if (!Array.isArray(orders)) return res.status(400).json({ error: 'orders must be an array' });
+
+  await Promise.all(
+    orders.map(({ id, sortOrder }) =>
+      Group.updateOne({ _id: id, userId: req.user.id }, { $set: { sortOrder } })
+    )
+  );
+
+  res.json({ ok: true });
+});
+
 router.patch('/:id', async (req, res) => {
   const group = await Group.findOne({ _id: req.params.id, userId: req.user.id });
   if (!group) return res.status(404).json({ error: 'Group not found' });
