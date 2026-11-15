@@ -8,7 +8,7 @@ const jwt = require('jsonwebtoken');
 const ms = require('ms');
 
 const User = require('../database/models/User');
-const { sendEmail } = require('../nodemailer');
+const { sendEmail } = require('../resend');
 
 // POST /sign-up
 router.post('/sign-up', async (req, res, next) => {
@@ -36,6 +36,7 @@ router.post('/sign-up', async (req, res, next) => {
           email,
           passwordHash,
           displayName: displayName || name, // Fallback to name if sent from frontend
+          isVerified: false,
         },
       ],
       { session }
@@ -56,6 +57,7 @@ router.post('/sign-up', async (req, res, next) => {
 
     const verificationUrl = `${process.env.SERVER_URL}/api/auth/verify-email?token=${token}`;
 
+    // Send verification email via Resend API
     await sendEmail({
       to: user.email,
       type: 'VERIFICATION',
@@ -74,13 +76,15 @@ router.post('/sign-up', async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      message: 'User created successfully',
+      message: 'User created successfully. Please check your email to verify your account.',
       data: {
         user: sanitizedUser,
       },
     });
   } catch (error) {
-    await session.abortTransaction();
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
     session.endSession();
     next(error);
   }

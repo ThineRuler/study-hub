@@ -1,0 +1,51 @@
+name: Auto Update Node Packages
+
+on:
+  schedule:
+    # Runs weekly every Monday at 06:00 UTC
+    - cron: '0 6 * * 1'
+  workflow_dispatch: # Allows manual run from GitHub Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  update-packages:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Update root dependencies
+        run: |
+          echo "Updating root npm packages..."
+          npm update
+
+      - name: Update frontend dependencies
+        run: |
+          echo "Updating frontend npm packages..."
+          cd frontend
+          npm update
+
+      - name: Commit and push updates
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Stage lockfiles and package manifests if updated
+          git add package.json package-lock.json frontend/package.json frontend/package-lock.json
+
+          if git diff --staged --quiet; then
+            echo "No package updates available."
+          else
+            echo "Package updates found. Committing and pushing changes..."
+            git commit -m "chore(deps): auto-update node packages [skip ci]"
+            git push origin HEAD:${{ github.ref_name }}
+          fi
