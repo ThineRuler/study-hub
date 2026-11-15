@@ -1,11 +1,13 @@
 // ignore_for_file: prefer_interpolation_to_compose_strings
 
+import 'dart:async';
+import 'package:flutter/material.dart';
 import 'package:material_ui/material_ui.dart';
-
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:table_calendar/table_calendar.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 //Global variables for cross-page states
 String displayName = "";
@@ -14,10 +16,52 @@ String userID = "";
 String token = "";
 
 //User preference settings
-String theme = "dark";
-double importanceWeight = 0;
-double dueDateWeight = 0;
-double timeWeight = 0;
+class SavedTheme {
+  String theme = "";
+  double textSize = 0.0;
+
+  SavedTheme({required this.theme, required this.textSize});
+}
+
+final themeData = ValueNotifier(SavedTheme(theme: 'light', textSize: 1.0));
+
+class TextSizeScale extends TextScaler {
+  const TextSizeScale(this.systemScaler, this.preferenceFactor);
+
+  final TextScaler systemScaler;
+  final double preferenceFactor;
+
+  @override
+  double get textScaleFactor => systemScaler.scale(1.0) * preferenceFactor;
+
+  @override
+  double scale(double fontSize) {
+    return systemScaler.scale(fontSize) * preferenceFactor;
+  }
+}
+
+String receiveTheme(String? theme) {
+  switch (theme) {
+    case 'light':
+      return 'light';
+    case 'dark':
+      return 'dark';
+    case 'botanical':
+      return 'botanical';
+    case 'highContrast':
+      return 'botanical';
+    default:
+      return 'light';
+  }
+}
+
+double receiveTextSize(double? textSize) {
+  if (textSize == null || textSize <= 0 || textSize.isFinite == false) {
+    return 1.0;
+  }
+
+  return textSize.clamp(0.5, 3.0).toDouble();
+}
 
 void showError(BuildContext context, String message) {
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
@@ -50,6 +94,7 @@ class User {
     token = data['token'] as String;
     userID = (userInfo['_id'] ?? userInfo['id']) as String;
     displayName = userInfo['displayName'] as String? ?? '';
+
     return User(
       id: userID,
       name: displayName,
@@ -306,13 +351,16 @@ class TaskAPI {
 class OptionAPI {
   final String baseUrl = 'http://64.225.121.181';
 
-  Future<Map<String, dynamic>> getCurrentUser() async {
+  Future<String> getCurrentUserTheme() async {
     final response = await http.get(
       Uri.parse('$baseUrl/api/users/me'),
       headers: _apiHeaders(authenticated: true),
     );
     if (response.statusCode == 200) {
-      return Map<String, dynamic>.from(json.decode(response.body) as Map);
+      final Map<String, dynamic> userInfo = Map<String, dynamic>.from(
+        json.decode(response.body) as Map,
+      );
+      return userInfo['settings']['theme'] as String? ?? '';
     } else {
       throw Exception('Loading settings failed: ${response.statusCode}');
     }
@@ -338,11 +386,13 @@ class OptionAPI {
       'displayName': displayName,
       if (settings.isNotEmpty) 'settings': settings,
     };
-    final response = await http.patch(
-      Uri.parse('$baseUrl/api/users/me'),
-      headers: _apiHeaders(authenticated: true),
-      body: jsonEncode(body),
-    );
+    final response = await http
+        .patch(
+          Uri.parse('$baseUrl/api/users/me'),
+          headers: _apiHeaders(authenticated: true),
+          body: jsonEncode(body),
+        )
+        .timeout(const Duration(seconds: 6));
     if (response.statusCode != 200) {
       return 1;
     }
@@ -388,7 +438,6 @@ class Task {
   final double priorityScore;
   final int sortOrder;
   final bool completed;
-  final List<Subtask> subtasks;
   final String? description;
   final String? groupId;
   final String? parentTaskId;
@@ -403,7 +452,6 @@ class Task {
     required this.priorityScore,
     required this.sortOrder,
     required this.completed,
-    required this.subtasks,
     this.description,
     this.groupId,
     this.parentTaskId,
@@ -411,7 +459,6 @@ class Task {
   });
 
   factory Task.fromJson(Map<String, dynamic> json) {
-    final rawSubtasks = json['subtasks'] as List? ?? const [];
 
     return Task(
       id: json['_id'] as String,
@@ -422,47 +469,10 @@ class Task {
       priorityScore: (json['priorityScore'] as num?)?.toDouble() ?? 0,
       sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
       completed: json['completed'] as bool? ?? false,
-      subtasks: rawSubtasks
-          .map(
-            (item) => Subtask.fromJson(Map<String, dynamic>.from(item as Map)),
-          )
-          .toList(),
       description: json['description'] as String?,
       groupId: json['groupId'] as String?,
       parentTaskId: json['parentTaskId'] as String?,
       dueDate: json['dueDate'] as String?,
-    );
-  }
-}
-
-class Subtask {
-  final String id;
-  final String parentTaskId;
-  final String name;
-  final double importance;
-  final int estPomodoros;
-  final double priorityScore;
-  final bool completed;
-
-  Subtask({
-    required this.id,
-    required this.parentTaskId,
-    required this.name,
-    required this.importance,
-    required this.estPomodoros,
-    required this.priorityScore,
-    required this.completed,
-  });
-
-  factory Subtask.fromJson(Map<String, dynamic> json) {
-    return Subtask(
-      id: json['_id'] as String,
-      parentTaskId: json['parentTaskId'] as String? ?? '',
-      name: json['name'] as String,
-      importance: (json['importance'] as num?)?.toDouble() ?? 0,
-      estPomodoros: (json['estPomodoros'] as num?)?.toInt() ?? 1,
-      priorityScore: (json['priorityScore'] as num?)?.toDouble() ?? 0,
-      completed: json['completed'] as bool? ?? false,
     );
   }
 }
@@ -530,24 +540,81 @@ class TaskCard extends StatelessWidget {
   }
 }
 
-void main() {
-  runApp(
-    MaterialApp(
-      initialRoute: '/',
-      routes: {
-        '/': (context) => const LoginPage(),
-        '/home': (context) => const HomePage(),
-        '/newitem': (context) => const NewItemPage(),
-        '/register': (context) => const RegisterPage(),
-        '/email': (context) => const EmailCodeConfirm(),
-        '/password': (context) => const PasswordConfirmationSend(),
-        '/passwordcode': (context) => PasswordCodeConfirm(),
-        '/createGroup': (context) => const NewGroupPage(),
-        '/settings': (context) => const SettingsPage(),
-      },
-      debugShowCheckedModeBanner: false,
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final prefs = await SharedPreferences.getInstance();
+  themeData.value = SavedTheme(
+    theme: receiveTheme(prefs.getString('theme')),
+    textSize: receiveTextSize(prefs.getDouble('textSize')),
+  );
+
+  runApp(CombinedMain());
+}
+
+class CombinedMain extends StatelessWidget {
+  const CombinedMain({super.key});
+
+  static final ThemeData lightMode = ThemeData(
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: Colors.green,
+      brightness: Brightness.light,
     ),
   );
+
+  static final ThemeData darkMode = ThemeData(
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: const Color.fromARGB(255, 40, 85, 42),
+      brightness: Brightness.dark,
+    ),
+  );
+
+  static final ThemeData highContrastMode = ThemeData(
+    colorScheme: const ColorScheme.highContrastLight(),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<SavedTheme>(
+      valueListenable: themeData,
+      builder: (context, preferences, _) {
+        return MaterialApp(
+          theme: preferences.theme == 'botanical'
+              ? highContrastMode
+              : lightMode,
+          darkTheme: darkMode,
+          themeMode: preferences.theme == 'dark'
+              ? ThemeMode.dark
+              : ThemeMode.light,
+          builder: (context, child) {
+            final media = MediaQuery.of(context);
+            return MediaQuery(
+              data: media.copyWith(
+                textScaler: TextSizeScale(
+                  media.textScaler,
+                  preferences.textSize,
+                ),
+              ),
+              child: child ?? const SizedBox.shrink(),
+            );
+          },
+          initialRoute: '/',
+          routes: {
+            '/': (context) => const LoginPage(),
+            '/home': (context) => const HomePage(),
+            '/newitem': (context) => const NewItemPage(),
+            '/register': (context) => const RegisterPage(),
+            '/email': (context) => const EmailCodeConfirm(),
+            '/password': (context) => const PasswordConfirmationSend(),
+            '/passwordcode': (context) => PasswordCodeConfirm(),
+            '/createGroup': (context) => const NewGroupPage(),
+            '/settings': (context) => const SettingsPage(),
+          },
+          debugShowCheckedModeBanner: false,
+        );
+      },
+    );
+  }
 }
 
 mixin TaskActions<T extends StatefulWidget> on State<T> {
@@ -616,8 +683,6 @@ class HomePageState extends State<HomePage> with TaskActions<HomePage> {
   Future<List<Group>> loadedGroups = Future.value([]);
 
   int currentPageIndex = 0;
-  int apiStatus = 0;
-
   TextEditingController searchController = TextEditingController();
 
   @override
@@ -797,8 +862,8 @@ class HomePageState extends State<HomePage> with TaskActions<HomePage> {
       appBar: AppBar(
         leading: BackButton(),
         title: const Text("Home"),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         actions: [
           IconButton(
             icon: Icon(Icons.settings),
@@ -818,7 +883,7 @@ class HomePageState extends State<HomePage> with TaskActions<HomePage> {
             if (index == 3) loadedGroups = taskAPI.getGroups();
           });
         },
-        indicatorColor: Colors.lightGreen,
+        indicatorColor: Theme.of(context).colorScheme.secondaryContainer,
         selectedIndex: currentPageIndex,
         destinations: <Widget>[
           NavigationDestination(
@@ -900,7 +965,10 @@ class HomePageState extends State<HomePage> with TaskActions<HomePage> {
                       child: ElevatedButton(
                         child: Text(
                           'Enter new item page',
-                          style: TextStyle(color: Colors.green, fontSize: 20),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
                         ),
                         onPressed: () => openPage('/newitem'),
                       ),
@@ -910,7 +978,10 @@ class HomePageState extends State<HomePage> with TaskActions<HomePage> {
                       child: ElevatedButton(
                         child: Text(
                           'Enter new group page',
-                          style: TextStyle(color: Colors.green, fontSize: 20),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
                         ),
                         onPressed: () => openPage('/createGroup'),
                       ),
@@ -1003,8 +1074,8 @@ class ViewGroupPageState extends State<ViewGroupPage>
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.group.name),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
       ),
       body: Padding(
         padding: const EdgeInsets.all(8.0),
@@ -1028,12 +1099,32 @@ class LoginPageState extends State<LoginPage> {
   String email = "";
   String password = "";
 
-  List<Task> loadedTasks = [];
-
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
 
   final LoginAPI login = LoginAPI();
+  OptionAPI optionAPI = OptionAPI();
+
+  Future<void> loadSavedTheme() async {
+    final serverTheme = await optionAPI.getCurrentUserTheme();
+
+    if (serverTheme.isEmpty) {
+      throw FormatException('No theme was returned by the server');
+    }
+
+    final checkTheme = receiveTheme(serverTheme);
+    final sharedPreferences = await SharedPreferences.getInstance();
+    final savedLocally = await sharedPreferences.setString('theme', checkTheme);
+
+    if (savedLocally == false) {
+      throw StateError('Could not cache the server theme on this device');
+    }
+
+    themeData.value = SavedTheme(
+      theme: checkTheme,
+      textSize: themeData.value.textSize,
+    );
+  }
 
   @override
   void dispose() {
@@ -1048,8 +1139,8 @@ class LoginPageState extends State<LoginPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Login"),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
       ),
 
       body: SingleChildScrollView(
@@ -1062,8 +1153,10 @@ class LoginPageState extends State<LoginPage> {
                   width: 200,
                   height: 100,
                   child: Text(
-                    'Welcome to Small Steps',
-                    style: TextStyle(fontSize: 30, color: Colors.blueGrey),
+                    'Welcome to StudyHub',
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                 ),
               ),
@@ -1101,7 +1194,11 @@ class LoginPageState extends State<LoginPage> {
                       child: ElevatedButton(
                         child: Text(
                           'Sign In',
-                          style: TextStyle(color: Colors.green, fontSize: 20),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontSize: 20,
+                              ),
                         ),
                         onPressed: () async {
                           email = emailController.text;
@@ -1170,6 +1267,24 @@ class LoginPageState extends State<LoginPage> {
 
                             if (attempt != null) {
                               if (attempt.isVerified == true) {
+                                try {
+                                  await loadSavedTheme();
+                                } catch (error, stackTrace) {
+                                  debugPrint('User theme load failure: $error');
+                                  debugPrintStack(stackTrace: stackTrace);
+
+                                  if (context.mounted) {
+                                    showError(
+                                      context,
+                                      'Could not load your saved theme; using the last saved setting.',
+                                    );
+                                  }
+                                }
+
+                                if (context.mounted == false) {
+                                  return;
+                                }
+
                                 Navigator.pushNamed(context, '/home');
                               } else {
                                 Navigator.pushNamed(context, '/email');
@@ -1203,7 +1318,11 @@ class LoginPageState extends State<LoginPage> {
                       child: ElevatedButton(
                         child: Text(
                           'Register',
-                          style: TextStyle(color: Colors.green, fontSize: 20),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontSize: 20,
+                              ),
                         ),
                         onPressed: () {
                           Navigator.pushNamed(context, '/register');
@@ -1228,7 +1347,8 @@ class LoginPageState extends State<LoginPage> {
                       },
                       child: Text(
                         'Forgot Password',
-                        style: TextStyle(fontSize: 14, color: Colors.blue),
+                        style: Theme.of(context).textTheme.bodyMedium
+                            ?.copyWith(fontSize: 14, color: Colors.blue),
                       ),
                     ),
                   ),
@@ -1277,8 +1397,8 @@ class NewItemState extends State<NewItemPage> {
       appBar: AppBar(
         leading: BackButton(),
         title: const Text("New Task"),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
       ),
 
       body: SingleChildScrollView(
@@ -1412,7 +1532,10 @@ class NewItemState extends State<NewItemPage> {
                 children: [
                   Text(
                     'Time Estimate:',
-                    style: TextStyle(fontSize: 15, color: Colors.green),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontSize: 15,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                 ],
               ),
@@ -1441,7 +1564,10 @@ class NewItemState extends State<NewItemPage> {
                   child: ElevatedButton(
                     child: Text(
                       'Submit',
-                      style: TextStyle(color: Colors.green, fontSize: 20),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontSize: 20,
+                      ),
                     ),
                     onPressed: () async {
                       final name = taskName.trim();
@@ -1592,8 +1718,8 @@ class EditTaskPageState extends State<EditTaskPage> {
       appBar: AppBar(
         leading: BackButton(),
         title: const Text("Edit Task"),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -1673,8 +1799,8 @@ class NewGroupState extends State<NewGroupPage> {
       appBar: AppBar(
         leading: BackButton(),
         title: const Text("New Group"),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -1778,8 +1904,8 @@ class EditGroupState extends State<EditGroupPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Edit Group"),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -1888,8 +2014,8 @@ class RegisterState extends State<RegisterPage> {
       appBar: AppBar(
         leading: BackButton(),
         title: const Text("Register Account"),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
       ),
 
       body: SingleChildScrollView(
@@ -1904,8 +2030,12 @@ class RegisterState extends State<RegisterPage> {
                       width: 200,
                       height: 100,
                       child: Text(
-                        'Welcome to Small Steps',
-                        style: TextStyle(fontSize: 30, color: Colors.green),
+                        'Welcome to StudyHub',
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(
+                              fontSize: 30,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
                       ),
                     ),
                   ),
@@ -1914,7 +2044,10 @@ class RegisterState extends State<RegisterPage> {
                     height: 100,
                     child: Text(
                       'Enter your desired information to proceed.',
-                      style: TextStyle(fontSize: 15, color: Colors.green),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontSize: 15,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                     ),
                   ),
                 ],
@@ -1985,7 +2118,9 @@ class RegisterState extends State<RegisterPage> {
                 child: ElevatedButton(
                   child: Text(
                     'Next',
-                    style: TextStyle(color: Colors.green, fontSize: 20),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                   onPressed: () async {
                     email = emailController.text;
@@ -2109,8 +2244,8 @@ class EmailCodeConfirmState extends State<EmailCodeConfirm> {
       appBar: AppBar(
         leading: BackButton(),
         title: const Text("Confirm Email"),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
       ),
 
       body: SingleChildScrollView(
@@ -2123,8 +2258,11 @@ class EmailCodeConfirmState extends State<EmailCodeConfirm> {
                   width: 200,
                   height: 100,
                   child: Text(
-                    'Welcome to Small Steps',
-                    style: TextStyle(fontSize: 30, color: Colors.blueGrey),
+                    'Welcome to StudyHub',
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontSize: 30,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                 ),
               ),
@@ -2138,7 +2276,10 @@ class EmailCodeConfirmState extends State<EmailCodeConfirm> {
                     height: 100,
                     child: Text(
                       'Registry success. Check your email to verify your account.',
-                      style: TextStyle(fontSize: 15, color: Colors.green),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontSize: 15,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                     ),
                   ),
                 ],
@@ -2155,7 +2296,11 @@ class EmailCodeConfirmState extends State<EmailCodeConfirm> {
                       child: ElevatedButton(
                         child: Text(
                           'Confirm',
-                          style: TextStyle(color: Colors.green, fontSize: 20),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontSize: 20,
+                              ),
                         ),
                         onPressed: () {
                           Navigator.pushNamed(context, '/');
@@ -2199,8 +2344,8 @@ class PasswordConfirmState extends State<PasswordConfirmationSend> {
       appBar: AppBar(
         leading: BackButton(),
         title: const Text("Reset Password"),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
       ),
 
       body: SingleChildScrollView(
@@ -2215,8 +2360,12 @@ class PasswordConfirmState extends State<PasswordConfirmationSend> {
                       width: 200,
                       height: 100,
                       child: Text(
-                        'Welcome to Small Steps',
-                        style: TextStyle(fontSize: 30, color: Colors.green),
+                        'Welcome to StudyHub',
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(
+                              fontSize: 30,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
                       ),
                     ),
                   ),
@@ -2225,7 +2374,10 @@ class PasswordConfirmState extends State<PasswordConfirmationSend> {
                     height: 100,
                     child: Text(
                       'Enter your registered email. We\'ll send you a code.',
-                      style: TextStyle(fontSize: 15, color: Colors.green),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontSize: 15,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                     ),
                   ),
                 ],
@@ -2252,7 +2404,11 @@ class PasswordConfirmState extends State<PasswordConfirmationSend> {
                       child: ElevatedButton(
                         child: Text(
                           'Next',
-                          style: TextStyle(color: Colors.green, fontSize: 20),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontSize: 20,
+                              ),
                         ),
 
                         onPressed: () async {
@@ -2328,8 +2484,8 @@ class PasswordCodeConfirmState extends State<PasswordCodeConfirm> {
       appBar: AppBar(
         leading: BackButton(),
         title: const Text("Password Reset"),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
       ),
 
       body: SingleChildScrollView(
@@ -2344,8 +2500,12 @@ class PasswordCodeConfirmState extends State<PasswordCodeConfirm> {
                       width: 200,
                       height: 100,
                       child: Text(
-                        'Welcome to Small Steps',
-                        style: TextStyle(fontSize: 30, color: Colors.green),
+                        'Welcome to StudyHub',
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(
+                              fontSize: 30,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
                       ),
                     ),
                   ),
@@ -2354,7 +2514,10 @@ class PasswordCodeConfirmState extends State<PasswordCodeConfirm> {
                     height: 100,
                     child: Text(
                       'Check your email and follow the link. Then reattempt login',
-                      style: TextStyle(fontSize: 15, color: Colors.green),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontSize: 15,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                     ),
                   ),
                 ],
@@ -2371,7 +2534,11 @@ class PasswordCodeConfirmState extends State<PasswordCodeConfirm> {
                       child: ElevatedButton(
                         child: Text(
                           'Return',
-                          style: TextStyle(color: Colors.green, fontSize: 20),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontSize: 20,
+                              ),
                         ),
                         onPressed: () {
                           Navigator.pushNamed(context, '/');
@@ -2397,7 +2564,9 @@ class SettingsPage extends StatefulWidget {
 }
 
 class SettingsState extends State<SettingsPage> {
-  String theme = "dark";
+  String theme = themeData.value.theme;
+  double textSize = themeData.value.textSize;
+
   double importance = 0.2;
   double dueDate = 0.7;
   double time = 0.1;
@@ -2408,7 +2577,6 @@ class SettingsState extends State<SettingsPage> {
   TextEditingController importanceController = TextEditingController();
   TextEditingController dueDateController = TextEditingController();
   TextEditingController timeController = TextEditingController();
-  TextEditingController themeController = TextEditingController();
 
   @override
   void dispose() {
@@ -2416,7 +2584,6 @@ class SettingsState extends State<SettingsPage> {
     importanceController.dispose();
     dueDateController.dispose();
     timeController.dispose();
-    themeController.dispose();
     super.dispose();
   }
 
@@ -2426,8 +2593,8 @@ class SettingsState extends State<SettingsPage> {
       appBar: AppBar(
         leading: BackButton(),
         title: const Text("User Settings"),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -2440,7 +2607,9 @@ class SettingsState extends State<SettingsPage> {
                 children: [
                   Text(
                     'Change options as desired:',
-                    style: TextStyle(fontSize: 15, color: Colors.green),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                   TextField(
                     controller: displayNameController,
@@ -2451,7 +2620,9 @@ class SettingsState extends State<SettingsPage> {
                   ),
                   Text(
                     'Sort weights:',
-                    style: TextStyle(fontSize: 15, color: Colors.green),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                   TextField(
                     controller: importanceController,
@@ -2484,12 +2655,25 @@ class SettingsState extends State<SettingsPage> {
                       DropdownMenuItem(value: "dark", child: Text("Dark")),
                       DropdownMenuItem(
                         value: "botanical",
-                        child: Text("Botanical"),
+                        child: Text("High Contrast"),
                       ),
                     ],
                     onChanged: (value) {
                       setState(() {
                         theme = value!;
+                      });
+                    },
+                  ),
+                  Text('Text size: ${textSize.toStringAsFixed(2)}x'),
+                  Slider(
+                    value: receiveTextSize(textSize),
+                    min: 0.5,
+                    max: 3.0,
+                    divisions: 25,
+                    label: '${textSize.toStringAsFixed(2)}x',
+                    onChanged: (value) {
+                      setState(() {
+                        textSize = value;
                       });
                     },
                   ),
@@ -2499,7 +2683,9 @@ class SettingsState extends State<SettingsPage> {
                     child: ElevatedButton(
                       child: Text(
                         'Set',
-                        style: TextStyle(color: Colors.green, fontSize: 20),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                       ),
                       onPressed: () async {
                         displayName = displayNameController.text;
@@ -2507,28 +2693,41 @@ class SettingsState extends State<SettingsPage> {
                         if (importanceController.text.isEmpty) {
                           importance = 0.2;
                         } else {
-                          importance = double.parse(importanceController.text);
+                          importance =
+                              double.tryParse(importanceController.text) ?? 0.2;
                         }
 
                         if (dueDateController.text.isEmpty) {
                           dueDate = 0.7;
                         } else {
-                          dueDate = double.parse(dueDateController.text);
+                          dueDate =
+                              double.tryParse(dueDateController.text) ?? 0.7;
                         }
 
                         if (timeController.text.isEmpty) {
                           time = 0.1;
                         } else {
-                          time = double.parse(timeController.text);
+                          time = double.tryParse(timeController.text) ?? 0.1;
                         }
 
-                        int result = await optionAPI.patchCurrentUser(
-                          displayName,
-                          theme,
-                          importance,
-                          dueDate,
-                          time,
-                        );
+                        int result;
+                        try {
+                          result = await optionAPI.patchCurrentUser(
+                            displayName,
+                            theme,
+                            importance,
+                            dueDate,
+                            time,
+                          );
+                        } on TimeoutException {
+                          if (context.mounted) {
+                            showError(
+                              context,
+                              'Updating settings timed out. Please try again.',
+                            );
+                          }
+                          return;
+                        }
                         if (context.mounted != true) {
                           return;
                         }
@@ -2552,6 +2751,47 @@ class SettingsState extends State<SettingsPage> {
                             },
                           );
                         } else {
+                          final sharedPreferences =
+                              await SharedPreferences.getInstance();
+                          final themeLocal = await sharedPreferences.setString(
+                            'theme',
+                            theme,
+                          );
+                          final textSizeLocal = await sharedPreferences
+                              .setDouble('textSize', textSize);
+
+                          if (context.mounted == false) {
+                            return;
+                          }
+
+                          if (themeLocal != true || textSizeLocal != true) {
+                            showDialog(
+                              context: context,
+                              builder: (BuildContext context) {
+                                return AlertDialog(
+                                  title: Text('Error'),
+                                  content: Text(
+                                    'Failed to save local settings',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      child: Text('OK'),
+                                      onPressed: () {
+                                        Navigator.of(context).pop();
+                                      },
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                            return;
+                          }
+
+                          themeData.value = SavedTheme(
+                            theme: theme,
+                            textSize: textSize,
+                          );
+
                           Navigator.of(context).pop();
                         }
                       },

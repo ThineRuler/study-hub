@@ -1,0 +1,155 @@
+@startuml
+
+package "Global content" {
+  class "AppGlobals" as AppGlobals <<top-level>> {
+    +displayName : String
+    +userID : String
+    +token : String
+    +themeData : ValueNotifier<SavedTheme>
+    +showError(context, message) : void
+    +validDate(value) : bool
+    +receiveTheme(theme) : String
+    +receiveTextSize(textSize) : double
+    -_apiHeaders(authenticated) : Map<String, String>
+    +main() : Future<void>
+  }
+
+  class SavedTheme {
+    +theme : String
+    +textSize : double
+  }
+
+  class TextSizeScale {
+    +systemScaler : TextScaler
+    +preferenceFactor : double
+    +scale(fontSize) : double
+  }
+}
+
+class User {
+    +id : String
+    +name : String
+    +email : String
+    +isVerified : bool
+    +fromJson(json) : User
+  }
+
+
+
+
+package "API providers" {
+  class LoginAPI {
+    +baseUrl : String
+    +login(email, password) : Future<User?>
+    +register(displayName, email, password) : Future<int>
+    +forgotPassword(email) : Future<int>
+  }
+
+  class OptionAPI {
+    +baseUrl : String
+    +getCurrentUserTheme() : Future<String>
+    +patchCurrentUser(...) : Future<int>
+  }
+
+}
+
+
+
+package "Application root" {
+  class CombinedMain {
+    +lightMode : ThemeData
+    +darkMode : ThemeData
+    +highContrastMode : ThemeData
+    +build(context) : Widget
+  }
+}
+  
+  package "Login pages" {
+
+  class LoginPage {
+    +email : String
+    +password : String
+    +emailController : TextEditingController
+    +passwordController : TextEditingController
+    +login : LoginAPI
+    +optionAPI : OptionAPI
+    +loadSavedTheme() : Future<void>
+    +dispose() : void
+    +build(context) : Widget
+  }
+
+ 
+  class RegisterPage {
+    +email : String
+    +passwordOne : String
+    +passwordTwo : String
+    +emailController : TextEditingController
+    +nameController : TextEditingController
+    +passwordControllerOne : TextEditingController
+    +passwordControllerTwo : TextEditingController
+    +login : LoginAPI
+    +dispose() : void
+    +build(context) : Widget
+  }
+
+  
+   class EmailCodeConfirm {
+     +build(context) : Widget
+   }
+  
+   class PasswordCodeConfirm {
+     +build(context) : Widget
+   }
+  
+  class PasswordConfirmationSend {
+    +emailController : TextEditingController
+    +email : String
+    +login : LoginAPI
+    +dispose() : void
+    +build(context) : Widget
+  }
+  }
+
+  class SettingsPage {
+    +theme : String
+    +textSize : double
+    +importance : double
+    +dueDate : double
+    +time : double
+    +optionAPI : OptionAPI
+    +displayNameController : TextEditingController
+    +importanceController : TextEditingController
+    +dueDateController : TextEditingController
+    +timeController : TextEditingController
+    +dispose() : void
+    +build(context) : Widget
+  }
+
+' Application state and preference relationships
+AppGlobals o-- SavedTheme : themeData
+CombinedMain ..> AppGlobals : observes themeData
+CombinedMain ..> TextSizeScale : applies text scaling
+LoginPage ..> AppGlobals : updates themeData
+SettingsPage ..> AppGlobals : updates themeData
+
+' API dependencies
+LoginAPI ..> User : creates
+User ..> AppGlobals : sets token / identity
+OptionAPI ..> AppGlobals : authenticated headers
+
+' Page dependencies
+LoginPage ..> LoginAPI
+LoginPage ..> OptionAPI
+RegisterPage ..> LoginAPI
+PasswordConfirmationSend ..> LoginAPI
+SettingsPage ..> OptionAPI
+
+' Routes configured by CombinedMain
+CombinedMain ..> LoginPage : "/"
+CombinedMain ..> RegisterPage : "/register"
+CombinedMain ..> EmailCodeConfirm : "/email"
+CombinedMain ..> PasswordConfirmationSend : "/password"
+CombinedMain ..> PasswordCodeConfirm : "/passwordcode"
+CombinedMain ..> SettingsPage : "/settings"
+
+@enduml
