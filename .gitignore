@@ -13,3 +13,6 @@ dist/
 *.env
 atlas-credentials.env
 !.env.example
+
+# notes & working docs
+fixes.md
