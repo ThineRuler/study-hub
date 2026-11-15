@@ -10,10 +10,13 @@ interface TaskContextType {
   isLoading: boolean;
   refreshData: () => Promise<void>;
   createTask: (payload: TaskPayload) => Promise<TaskItem>;
+  updateTask: (id: string, payload: Partial<TaskPayload>) => Promise<TaskItem>;
   toggleTask: (id: string, currentCompleted: boolean) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
   createGroup: (name: string, color?: string) => Promise<GroupItem>;
+  updateGroup: (id: string, payload: { name?: string; color?: string; sortOrder?: number }) => Promise<GroupItem>;
   deleteGroup: (id: string) => Promise<void>;
+  reorderGroups: (newOrderedGroups: GroupItem[]) => Promise<void>;
 }
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
@@ -74,6 +77,12 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return created;
   };
 
+  const updateTask = async (id: string, payload: Partial<TaskPayload>): Promise<TaskItem> => {
+    const updated = await taskApi.updateTask(id, payload);
+    await refreshData();
+    return updated;
+  };
+
   const toggleTask = async (id: string, currentCompleted: boolean) => {
     // Optimistic UI update
     const nextCompleted = !currentCompleted;
@@ -82,12 +91,33 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (found) {
         setTasks((prev) => prev.filter((t) => t._id !== id));
         setCompletedTasks((prev) => [{ ...found, completed: true, completedAt: new Date().toISOString() }, ...prev]);
+
+        // If this is a subtask, check if all siblings are now completed to complete parent workspace
+        if (found.parentTaskId) {
+          const remainingActiveSiblings = tasks.filter((t) => t.parentTaskId === found.parentTaskId && t._id !== id);
+          if (remainingActiveSiblings.length === 0) {
+            const parent = tasks.find((t) => t._id === found.parentTaskId);
+            if (parent) {
+              setTasks((prev) => prev.filter((t) => t._id !== found.parentTaskId));
+              setCompletedTasks((prev) => [{ ...parent, completed: true, completedAt: new Date().toISOString() }, ...prev]);
+            }
+          }
+        }
       }
     } else {
       const found = completedTasks.find((t) => t._id === id);
       if (found) {
         setCompletedTasks((prev) => prev.filter((t) => t._id !== id));
         setTasks((prev) => [...prev, { ...found, completed: false, completedAt: undefined }]);
+
+        // If this was a subtask, restore its parent workspace as active
+        if (found.parentTaskId) {
+          const parentInCompleted = completedTasks.find((t) => t._id === found.parentTaskId);
+          if (parentInCompleted) {
+            setCompletedTasks((prev) => prev.filter((t) => t._id !== found.parentTaskId));
+            setTasks((prev) => [...prev, { ...parentInCompleted, completed: false, completedAt: undefined }]);
+          }
+        }
       }
     }
 
@@ -111,9 +141,32 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return created;
   };
 
+  const updateGroup = async (
+    id: string,
+    payload: { name?: string; color?: string; sortOrder?: number }
+  ): Promise<GroupItem> => {
+    const updated = await groupApi.updateGroup(id, payload);
+    setGroups((prev) => prev.map((g) => (g._id === id ? { ...g, ...updated } : g)));
+    return updated;
+  };
+
   const deleteGroup = async (id: string) => {
     await groupApi.deleteGroup(id);
     await refreshData();
+  };
+
+  const reorderGroups = async (newOrderedGroups: GroupItem[]) => {
+    setGroups(newOrderedGroups);
+    const orders = newOrderedGroups.map((g, index) => ({
+      id: g._id,
+      sortOrder: index,
+    }));
+    try {
+      await groupApi.reorderGroups(orders);
+    } catch (err) {
+      console.error('Failed to save group reorder to database:', err);
+      await refreshData();
+    }
   };
 
   return (
@@ -125,10 +178,13 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         refreshData,
         createTask,
+        updateTask,
         toggleTask,
         deleteTask,
         createGroup,
+        updateGroup,
         deleteGroup,
+        reorderGroups,
       }}
     >
       {children}

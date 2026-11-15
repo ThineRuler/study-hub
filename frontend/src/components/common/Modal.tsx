@@ -53,8 +53,11 @@ export const Modal: React.FC<ModalProps> = ({
       {/* Modal Dialog */}
       <div className="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={title ? 'modal-title' : undefined}
           className={`
-            relative transform overflow-hidden rounded-2xl bg-white text-left shadow-xl transition-all
+            relative transform overflow-hidden rounded-2xl bg-white dark:bg-surface-card text-left shadow-xl transition-all
             w-full ${maxWidthClasses[maxWidth]} my-8 border border-surface-border p-6 sm:p-7
           `}
           onClick={(e) => e.stopPropagation()}
@@ -63,7 +66,7 @@ export const Modal: React.FC<ModalProps> = ({
           <div className="flex items-start justify-between mb-5">
             <div>
               {title && (
-                <h3 className="text-xl font-bold text-content-primary tracking-tight">
+                <h3 id="modal-title" className="text-xl font-bold text-content-primary tracking-tight">
                   {title}
                 </h3>
               )}

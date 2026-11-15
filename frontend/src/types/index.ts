@@ -13,6 +13,14 @@ export interface UserSettings {
   workDuration: number;
   breakDuration: number;
   chimeEnabled: boolean;
+  invertConfidence?: boolean;
+  dailyDigestEnabled?: boolean;
+  emailDigestTime?: string;
+  weights?: {
+    importance: number;
+    dueDate: number;
+    time: number;
+  };
   algorithm: {
     invertConfidence: boolean; // default: true (flow state, high confidence first)
     weights: {
@@ -27,8 +35,10 @@ export interface UserSettings {
 
 export interface AccessibilitySettings {
   highContrast: boolean;
-  font: 'inter' | 'dyslexic' | 'system';
+  dyslexiaFont: boolean;
+  boldText: boolean;
   fontScale: number; // 90 to 150
+  font?: 'inter' | 'dyslexic' | 'system';
 }
 
 export interface Subtask {
@@ -55,6 +65,8 @@ export interface Task {
   linkSubtaskDueDates?: boolean;
   keepSiblingsSameDay?: boolean;
   priorityScore?: number;
+  scheduledDate?: string;
+  scheduledDay?: number | null;
   completed: boolean;
   completedAt?: string;
 }

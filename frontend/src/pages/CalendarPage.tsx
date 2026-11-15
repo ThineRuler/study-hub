@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { useTasks } from '../context/TaskContext';
 import { Button } from '../components/common/Button';
 import { ChevronLeft, ChevronRight, Check } from 'lucide-react';
+import { getLocalDateString, parseCalendarDate } from '../utils/scheduler';
+import { TaskActionsMenu } from '../components/tasks/TaskActionsMenu';
 
 export const CalendarPage: React.FC = () => {
-  const { tasks, completedTasks } = useTasks();
+  const { tasks, completedTasks, toggleTask } = useTasks();
   const [currentDate, setCurrentDate] = useState(new Date());
 
   const year = currentDate.getFullYear();
@@ -23,7 +25,7 @@ export const CalendarPage: React.FC = () => {
 
   const allTasks = [...tasks, ...completedTasks];
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalDateString();
 
   return (
     <div className="space-y-6">
@@ -82,7 +84,11 @@ export const CalendarPage: React.FC = () => {
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
             const isToday = dateStr === todayStr;
 
-            const dayTasks = allTasks.filter((t) => t.dueDate && t.dueDate.startsWith(dateStr));
+            const dayTasks = allTasks.filter((t) => {
+              if (!t.dueDate) return false;
+              const parsed = parseCalendarDate(t.dueDate);
+              return parsed ? parsed.dateStr === dateStr : t.dueDate.startsWith(dateStr);
+            });
 
             return (
               <div
@@ -108,23 +114,48 @@ export const CalendarPage: React.FC = () => {
                 </div>
 
                 <div className="space-y-1 mt-1 flex-1 overflow-y-auto">
-                  {dayTasks.map((t) => (
-                    <div
-                      key={t._id}
-                      className={`
-                        text-[11px] p-1 rounded font-medium truncate flex items-center gap-1
-                        ${
-                          t.completed
-                            ? 'bg-sage-100 text-sage-800 line-through'
-                            : 'bg-surface-subtle text-content-primary font-semibold'
-                        }
-                      `}
-                      title={t.name}
-                    >
-                      {t.completed && <Check className="w-3 h-3 text-sage-700 shrink-0" />}
-                      <span className="truncate">{t.name}</span>
-                    </div>
-                  ))}
+                  {dayTasks.map((t) => {
+                    const isWorkspaceTask = t.isWorkspace || allTasks.some((other) => other.parentTaskId === t._id);
+                    if (isWorkspaceTask) {
+                      return (
+                        <div
+                          key={t._id}
+                          className="text-[11px] p-1 rounded font-semibold flex items-center justify-between gap-1 group bg-sage-100/90 dark:bg-sage-900/50 text-sage-900 dark:text-sage-200 border border-sage-300 dark:border-sage-700"
+                          title={`Workspace: ${t.name}`}
+                        >
+                          <div className="flex items-center gap-1 min-w-0">
+                            <span className="text-[9px] uppercase px-1 py-0.2 rounded bg-sage-200 dark:bg-sage-800 text-sage-800 dark:text-sage-200 font-bold shrink-0">
+                              Workspace
+                            </span>
+                            <span className="truncate">{t.name}</span>
+                          </div>
+                          <TaskActionsMenu task={t} />
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={t._id}
+                        onClick={() => toggleTask(t._id, t.completed)}
+                        className={`
+                          text-[11px] p-1 rounded font-medium flex items-center justify-between gap-1 group cursor-pointer
+                          ${
+                            t.completed
+                              ? 'bg-sage-100 text-sage-800 line-through'
+                              : 'bg-surface-subtle text-content-primary font-semibold'
+                          }
+                        `}
+                        title={t.name}
+                      >
+                        <div className="flex items-center gap-1 min-w-0">
+                          {t.completed && <Check className="w-3 h-3 text-sage-700 shrink-0" />}
+                          <span className="truncate">{t.name}</span>
+                        </div>
+                        <TaskActionsMenu task={t} />
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );

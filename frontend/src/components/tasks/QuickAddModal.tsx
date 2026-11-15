@@ -4,6 +4,7 @@ import { Input } from '../common/Input';
 import { Button } from '../common/Button';
 import { ConfidenceSlider } from '../common/ConfidenceSlider';
 import { useTasks } from '../../context/TaskContext';
+import { getLocalDateString } from '../../utils/scheduler';
 
 interface QuickAddModalProps {
   isOpen: boolean;
@@ -19,7 +20,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
   const [selectedGroupId, setSelectedGroupId] = useState<string>('');
   const [estPomodoros, setEstPomodoros] = useState(1);
   const [confidence, setConfidence] = useState(8);
-  const [dueDate, setDueDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [dueDate, setDueDate] = useState(() => getLocalDateString());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 

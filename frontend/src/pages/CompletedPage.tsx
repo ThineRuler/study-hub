@@ -2,13 +2,18 @@ import React from 'react';
 import { useTasks } from '../context/TaskContext';
 import { Button } from '../components/common/Button';
 import { CheckCircle2, RotateCcw, Trash2, Award } from 'lucide-react';
+import { TaskActionsMenu } from '../components/tasks/TaskActionsMenu';
 
 export const CompletedPage: React.FC = () => {
   const { completedTasks, groups, toggleTask, deleteTask } = useTasks();
 
   const groupMap = new Map(groups.map((g) => [g._id, g]));
 
-  const totalPomodorosCompleted = completedTasks.reduce((sum, t) => sum + (t.estPomodoros || 1), 0);
+  const displayCompletedTasks = completedTasks.filter(
+    (t) => !t.isWorkspace && !completedTasks.some((other) => other.parentTaskId === t._id)
+  );
+
+  const totalPomodorosCompleted = displayCompletedTasks.reduce((sum, t) => sum + (t.estPomodoros || 1), 0);
 
   const handleRestore = async (id: string) => {
     await toggleTask(id, true);
@@ -63,13 +68,13 @@ export const CompletedPage: React.FC = () => {
           <span className="text-xs font-bold uppercase tracking-wider text-content-muted">
             Tasks Completed
           </span>
-          <p className="text-3xl font-extrabold text-content-primary mt-1">{completedTasks.length}</p>
+          <p className="text-3xl font-extrabold text-content-primary mt-1">{displayCompletedTasks.length}</p>
           <p className="text-xs text-content-muted mt-0.5">All time archive</p>
         </div>
       </div>
 
       {/* List of Finished Items */}
-      {completedTasks.length === 0 ? (
+      {displayCompletedTasks.length === 0 ? (
         <div className="p-12 text-center bg-white border border-dashed border-surface-border rounded-3xl space-y-3">
           <Award className="w-10 h-10 text-sage-600 mx-auto" />
           <h3 className="text-base font-bold text-content-primary">No completed tasks yet</h3>
@@ -79,12 +84,12 @@ export const CompletedPage: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-2.5">
-          {completedTasks.map((t) => {
+          {displayCompletedTasks.map((t) => {
             const grp = t.groupId ? groupMap.get(t.groupId) : undefined;
             return (
               <div
                 key={t._id}
-                className="p-4 rounded-2xl border border-surface-border bg-white shadow-xs flex items-center justify-between"
+                className="p-4 rounded-2xl border border-surface-border bg-white shadow-xs flex items-center justify-between group"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-6 h-6 rounded-full bg-sage-100 text-sage-700 flex items-center justify-center shrink-0">
@@ -118,6 +123,7 @@ export const CompletedPage: React.FC = () => {
                     <RotateCcw className="w-3 h-3" />
                     Restore
                   </button>
+                  <TaskActionsMenu task={t} />
                 </div>
               </div>
             );

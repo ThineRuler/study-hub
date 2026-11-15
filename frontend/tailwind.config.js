@@ -21,20 +21,20 @@ export default {
           900: '#1D2D23',
         },
         surface: {
-          bg: '#F9FAF9',
-          card: '#FFFFFF',
-          border: '#E3E9E5',
-          subtle: '#F0F4F1',
+          bg: 'var(--color-surface-bg)',
+          card: 'var(--color-surface-card)',
+          border: 'var(--color-surface-border)',
+          subtle: 'var(--color-surface-subtle)',
         },
         content: {
-          primary: '#1D2821',
-          secondary: '#55685C',
-          muted: '#84968B',
+          primary: 'var(--color-content-primary)',
+          secondary: 'var(--color-content-secondary)',
+          muted: 'var(--color-content-muted)',
         }
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
-        dyslexic: ['OpenDyslexic', 'Comic Sans MS', 'sans-serif'],
+        dyslexic: ['OpenDyslexic', 'sans-serif'],
       }
     },
   },

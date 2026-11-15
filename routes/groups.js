@@ -15,7 +15,7 @@ router.get('/', async (req, res) => {
   const groups = await Group.find({ userId: req.user.id }).sort({ sortOrder: 1, createdAt: 1 }).lean();
   const userId = new mongoose.Types.ObjectId(req.user.id);
   const counts = await Task.aggregate([
-    { $match: { userId } },
+    { $match: { userId, isWorkspace: { $ne: true } } },
     { $group: { _id: '$groupId', count: { $sum: 1 } } },
   ]);
   const countByGroup = new Map(counts.map((row) => [String(row._id), row.count]));
@@ -41,6 +41,19 @@ router.post('/', async (req, res) => {
     if (duplicateName(err)) return res.status(409).json({ error: 'Group name already exists' });
     throw err;
   }
+});
+
+router.put('/reorder', async (req, res) => {
+  const { orders } = req.body;
+  if (!Array.isArray(orders)) return res.status(400).json({ error: 'orders must be an array' });
+
+  await Promise.all(
+    orders.map(({ id, sortOrder }) =>
+      Group.updateOne({ _id: id, userId: req.user.id }, { $set: { sortOrder } })
+    )
+  );
+
+  res.json({ ok: true });
 });
 
 router.patch('/:id', async (req, res) => {

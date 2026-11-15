@@ -52,6 +52,15 @@ export const groupApi = {
     return handleResponse<GroupItem>(res);
   },
 
+  async reorderGroups(orders: { id: string; sortOrder: number }[]): Promise<void> {
+    const res = await fetch('/api/groups/reorder', {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ orders }),
+    });
+    await handleResponse<{ ok: boolean }>(res);
+  },
+
   async deleteGroup(id: string): Promise<void> {
     const res = await fetch(`/api/groups/${id}`, {
       method: 'DELETE',

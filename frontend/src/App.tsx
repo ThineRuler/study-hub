@@ -1,6 +1,13 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import {
+  createBrowserRouter,
+  createRoutesFromElements,
+  RouterProvider,
+  Route,
+  Navigate,
+} from 'react-router-dom';
 import { AccessibilityProvider } from './context/AccessibilityContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import { TaskProvider } from './context/TaskContext';
 
@@ -31,49 +38,55 @@ import { CompletedPage } from './pages/CompletedPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { SearchPage } from './pages/SearchPage';
 
+const router = createBrowserRouter(
+  createRoutesFromElements(
+    <>
+      {/* Public Pages */}
+      <Route element={<PublicLayout />}>
+        <Route path="/" element={<WelcomePage />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/credits" element={<CreditsPage />} />
+      </Route>
+
+      {/* Auth Pages */}
+      <Route element={<AuthLayout />}>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ForgotPasswordPage />} />
+      </Route>
+
+      {/* Authenticated Workspace Pages */}
+      <Route element={<AppLayout />}>
+        <Route path="/dashboard" element={<DailyDigestPage />} />
+        <Route path="/next-7-days" element={<Next7DaysPage />} />
+        <Route path="/timer" element={<PomodoroTimerPage />} />
+        <Route path="/groups" element={<GroupsPage />} />
+        <Route path="/groups/:groupId" element={<GroupDetailPage />} />
+        <Route path="/calendar" element={<CalendarPage />} />
+        <Route path="/completed" element={<CompletedPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/search" element={<SearchPage />} />
+      </Route>
+
+      {/* Fallback Catch-all */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </>
+  )
+);
+
 export const App: React.FC = () => {
   return (
-    <AccessibilityProvider>
-      <AuthProvider>
-        <TaskProvider>
-          <BrowserRouter>
-          <Routes>
-            {/* Public Pages */}
-            <Route element={<PublicLayout />}>
-              <Route path="/" element={<WelcomePage />} />
-              <Route path="/about" element={<AboutPage />} />
-              <Route path="/credits" element={<CreditsPage />} />
-            </Route>
-
-            {/* Auth Pages */}
-            <Route element={<AuthLayout />}>
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/signup" element={<SignupPage />} />
-              <Route path="/verify-email" element={<VerifyEmailPage />} />
-              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-              <Route path="/reset-password" element={<ForgotPasswordPage />} />
-            </Route>
-
-            {/* Authenticated Workspace Pages */}
-            <Route element={<AppLayout />}>
-              <Route path="/dashboard" element={<DailyDigestPage />} />
-              <Route path="/next-7-days" element={<Next7DaysPage />} />
-              <Route path="/timer" element={<PomodoroTimerPage />} />
-              <Route path="/groups" element={<GroupsPage />} />
-              <Route path="/groups/:groupId" element={<GroupDetailPage />} />
-              <Route path="/calendar" element={<CalendarPage />} />
-              <Route path="/completed" element={<CompletedPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/search" element={<SearchPage />} />
-            </Route>
-
-            {/* Fallback Catch-all */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </BrowserRouter>
-      </TaskProvider>
-    </AuthProvider>
-    </AccessibilityProvider>
+    <ThemeProvider>
+      <AccessibilityProvider>
+        <AuthProvider>
+          <TaskProvider>
+            <RouterProvider router={router} />
+          </TaskProvider>
+        </AuthProvider>
+      </AccessibilityProvider>
+    </ThemeProvider>
   );
 };
 

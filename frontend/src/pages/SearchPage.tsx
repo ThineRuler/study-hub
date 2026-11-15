@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Search, CheckCircle2, Circle, Folder } from 'lucide-react';
 import { useTasks } from '../context/TaskContext';
 import { searchApi, SearchResponse, SearchType } from '../api/searchApi';
+import { formatDueDate } from '../utils/scheduler';
 
 const FILTERS: { value: SearchType; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -165,7 +166,7 @@ export const SearchPage: React.FC = () => {
                         {grp.name}
                       </span>
                     )}
-                    {t.dueDate && <span>Due {new Date(t.dueDate).toLocaleDateString()}</span>}
+                    {t.dueDate && <span>Due {formatDueDate(t.dueDate)}</span>}
                   </div>
                 </div>
               </div>
