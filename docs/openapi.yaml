@@ -7,10 +7,10 @@ info:
     sign in to get a JWT, then search your own tasks and groups with partial matching.
     Click "Authorize" and paste the token from /auth/sign-in (no "Bearer " prefix needed).
 servers:
-  - url: https://{domain}/api
+  - url: http://{domain}/api
     variables:
       domain:
-        default: your-domain.com
+        default: poosd-group15.com
         description: The team's live domain name
 tags:
   - name: Auth
