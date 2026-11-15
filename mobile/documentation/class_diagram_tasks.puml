@@ -1,0 +1,185 @@
+@startuml
+
+together {
+  class Group {
+    +id : String
+    +name : String
+    +color : String
+    +sortOrder : int
+    +taskCount : int
+    +fromJson(json) : Group
+  }
+
+  class Task {
+    +id : String
+    +userId : String
+    +name : String
+    +importance : double
+    +estPomodoros : int
+    +priorityScore : double
+    +sortOrder : int
+    +completed : bool
+    +description : String?
+    +groupId : String?
+    +parentTaskId : String?
+    +dueDate : String?
+    +fromJson(json) : Task
+  }
+  
+  class TaskCard {
+    +task : Task
+    +taskEdit : VoidCallback
+    +taskDelete : VoidCallback
+    +taskCompleted : ValueChanged<bool>
+    +build(context) : Widget
+  }
+  
+}
+package "API providers" {
+
+  class TaskAPI {
+    +baseUrl : String
+    +getTasks(filters) : Future<List<Task>>
+    +getTaskById(id) : Future<Task?>
+    +createTask(...) : Future<int>
+    +deleteTask(id) : Future<int>
+    +patchTask(id, changes) : Future<Task>
+    +createGroup(name, color) : Future<int>
+    +getGroups() : Future<List<Group>>
+    +patchGroup(...) : Future<Group?>
+    +deleteGroup(id) : Future<int>
+    +searchTasks(part) : Future<List<Task>>
+  }
+
+  class "TaskActions<T>" as TaskActions <<mixin>> {
+    +taskAPI : TaskAPI
+    +loadedTasks : Future<List<Task>>
+    +refreshTasks() : void
+    +editTask(task) : Future<void>
+    +deleteTask(task) : Future<void>
+    +setTaskCompleted(task, completed) : Future<void>
+  }
+}
+
+
+
+package "Application root" {
+  class CombinedMain {
+    +lightMode : ThemeData
+    +darkMode : ThemeData
+    +highContrastMode : ThemeData
+    +build(context) : Widget
+  }
+}
+
+package "Task pages" {
+  class HomePage {
+    +taskAPI : TaskAPI
+    +loadedTasks : Future<List<Task>>
+    +searchedTasks : Future<List<Task>>
+    +loadedGroups : Future<List<Group>>
+    +currentPageIndex : int
+    +searchController : TextEditingController
+    +initState() : void
+    +dispose() : void
+    +taskRefresh() : void
+    +openPage(route) : Future<void>
+    +taskList(...) : Widget
+    +groupList() : Widget
+    +groupEdit(group) : Future<void>
+    +groupDelete(group) : Future<void>
+    +build(context) : Widget
+  }
+
+  class ViewGroupPage {
+    +group : Group
+    +taskAPI : TaskAPI
+    +loadedTasks : Future<List<Task>>
+    +initState() : void
+    +taskList(...) : Widget
+    +build(context) : Widget
+  }
+  
+  class NewItemPage {
+    +taskAPI : TaskAPI
+    +groups : Future<List<Group>>
+    +taskName : String
+    +description : String
+    +groupId : String
+    +importance : double
+    +dueDate : String
+    +estPomodoros : int
+    +taskSuccess : int
+    +initState() : void
+    +build(context) : Widget
+  }
+
+  class EditTaskPage {
+    +task : Task
+    +taskAPI : TaskAPI
+    +nameController : TextEditingController
+    +descriptionController : TextEditingController
+    +pomodorosController : TextEditingController
+    +dueDateController : TextEditingController
+    +initialDate : String
+    +importance : double
+    +saving : bool
+    +initState() : void
+    +dispose() : void
+    +save() : Future<void>
+    +build(context) : Widget
+  }
+
+  class NewGroupPage {
+    +taskAPI : TaskAPI
+    +groupName : String
+    +groupColor : String
+    +build(context) : Widget
+  }
+
+  class EditGroupPage {
+    +group : Group
+    +taskAPI : TaskAPI
+    +groupName : String
+    +groupColor : String
+    +initState() : void
+    +build(context) : Widget
+  }
+  }
+  
+
+' Mixin usage formerly implemented by the corresponding page states
+HomePage ..> TaskActions : uses
+ViewGroupPage ..> TaskActions : uses
+
+
+' Model relationships
+Task "0..*" --> "0..1" Group : groupId
+TaskCard "1" o-- "1" Task
+EditTaskPage "1" o-- "1" Task
+EditGroupPage "1" o-- "1" Group
+ViewGroupPage "1" o-- "1" Group
+
+' API dependencies
+TaskAPI ..> Task : creates
+TaskAPI ..> Group : creates
+
+' Page dependencies
+HomePage ..> TaskAPI
+HomePage ..> TaskCard : builds
+ViewGroupPage ..> TaskAPI
+ViewGroupPage ..> TaskCard : builds
+NewItemPage ..> TaskAPI
+NewItemPage ..> Group
+NewGroupPage ..> TaskAPI
+EditGroupPage ..> TaskAPI
+TaskActions ..> TaskAPI
+TaskActions ..> Task
+EditTaskPage ..> TaskAPI
+
+' Routes configured by CombinedMain
+CombinedMain ..> HomePage : "/home"
+CombinedMain ..> NewItemPage : "/newitem"
+CombinedMain ..> NewGroupPage : "/createGroup"
+
+@enduml
