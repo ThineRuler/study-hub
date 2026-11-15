@@ -12,6 +12,35 @@ interface AccessibilityModalProps {
 export const AccessibilityModal: React.FC<AccessibilityModalProps> = ({ isOpen, onClose }) => {
   const { settings, updateSettings, resetSettings } = useAccessibility();
 
+  const handleDone = async () => {
+    const token = localStorage.getItem('studyhub_jwt_token');
+    if (token) {
+      try {
+        await fetch('/api/users/me', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            settings: {
+              accessibility: {
+                highContrast: settings.highContrast,
+                dyslexiaFont: settings.dyslexiaFont,
+                boldText: settings.boldText,
+                fontScale: settings.fontScale,
+                font: settings.font,
+              },
+            },
+          }),
+        });
+      } catch {
+        // Best-effort remote save
+      }
+    }
+    onClose();
+  };
+
   return (
     <Modal
       isOpen={isOpen}
@@ -34,6 +63,8 @@ export const AccessibilityModal: React.FC<AccessibilityModalProps> = ({ isOpen, 
           </div>
           <button
             type="button"
+            role="switch"
+            aria-checked={settings.highContrast}
             onClick={() => updateSettings({ highContrast: !settings.highContrast })}
             className={`
               relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out
@@ -62,6 +93,8 @@ export const AccessibilityModal: React.FC<AccessibilityModalProps> = ({ isOpen, 
           </div>
           <button
             type="button"
+            role="switch"
+            aria-checked={settings.dyslexiaFont}
             onClick={() =>
               updateSettings({
                 dyslexiaFont: !settings.dyslexiaFont,
@@ -95,6 +128,8 @@ export const AccessibilityModal: React.FC<AccessibilityModalProps> = ({ isOpen, 
           </div>
           <button
             type="button"
+            role="switch"
+            aria-checked={settings.boldText}
             onClick={() => updateSettings({ boldText: !settings.boldText })}
             className={`
               relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out
@@ -153,7 +188,7 @@ export const AccessibilityModal: React.FC<AccessibilityModalProps> = ({ isOpen, 
             <RotateCcw className="w-3.5 h-3.5 mr-1" />
             Reset Defaults
           </Button>
-          <Button variant="primary" size="sm" onClick={onClose}>
+          <Button variant="primary" size="sm" onClick={handleDone}>
             Done
           </Button>
         </div>

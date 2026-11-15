@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Accessibility } from 'lucide-react';
+import { PersonStanding } from 'lucide-react';
 import { AccessibilityModal } from './AccessibilityModal';
 
 export const FloatingAccessibilityButton: React.FC = () => {
@@ -14,7 +14,7 @@ export const FloatingAccessibilityButton: React.FC = () => {
         title="Accessibility Settings"
         aria-label="Accessibility Settings"
       >
-        <Accessibility className="w-5 h-5" />
+        <PersonStanding className="w-5 h-5" />
       </button>
 
       <AccessibilityModal isOpen={isOpen} onClose={() => setIsOpen(false)} />

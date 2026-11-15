@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User } from '../types';
+import { User, UserSettings } from '../types';
 import { authApi } from '../api/authApi';
+import { useTheme } from './ThemeContext';
+import { useAccessibility } from './AccessibilityContext';
 
 interface AuthContextType {
   user: User | null;
@@ -23,7 +25,105 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const TOKEN_KEY = 'studyhub_jwt_token';
 const PENDING_EMAIL_KEY = 'studyhub_pending_email';
 
+const DEFAULT_SETTINGS: UserSettings = {
+  theme: 'light',
+  dailyCap: 8,
+  taskCap: 4,
+  workDuration: 25,
+  breakDuration: 5,
+  chimeEnabled: true,
+  invertConfidence: true,
+  dailyDigestEnabled: true,
+  emailDigestTime: '08:00',
+  weights: { importance: 0.5, dueDate: 0.35, time: 0.15 },
+  algorithm: {
+    invertConfidence: true,
+    weights: { confidence: 1.0, pomodoros: 1.0, dueDate: 1.0 },
+  },
+  accessibility: {
+    highContrast: false,
+    dyslexiaFont: false,
+    boldText: false,
+    fontScale: 100,
+    font: 'inter',
+  },
+};
+
+const mergeSettings = (
+  existing?: Partial<UserSettings>,
+  incoming?: Partial<UserSettings>
+): UserSettings => {
+  return {
+    ...DEFAULT_SETTINGS,
+    ...existing,
+    ...incoming,
+    weights: {
+      importance:
+        incoming?.weights?.importance ??
+        existing?.weights?.importance ??
+        DEFAULT_SETTINGS.weights?.importance ??
+        0.5,
+      dueDate:
+        incoming?.weights?.dueDate ??
+        existing?.weights?.dueDate ??
+        DEFAULT_SETTINGS.weights?.dueDate ??
+        0.35,
+      time:
+        incoming?.weights?.time ??
+        existing?.weights?.time ??
+        DEFAULT_SETTINGS.weights?.time ??
+        0.15,
+    },
+    algorithm: {
+      invertConfidence:
+        incoming?.algorithm?.invertConfidence ??
+        existing?.algorithm?.invertConfidence ??
+        DEFAULT_SETTINGS.algorithm.invertConfidence,
+      customFormula: incoming?.algorithm?.customFormula ?? existing?.algorithm?.customFormula,
+      weights: {
+        confidence:
+          incoming?.algorithm?.weights?.confidence ??
+          existing?.algorithm?.weights?.confidence ??
+          DEFAULT_SETTINGS.algorithm.weights.confidence,
+        pomodoros:
+          incoming?.algorithm?.weights?.pomodoros ??
+          existing?.algorithm?.weights?.pomodoros ??
+          DEFAULT_SETTINGS.algorithm.weights.pomodoros,
+        dueDate:
+          incoming?.algorithm?.weights?.dueDate ??
+          existing?.algorithm?.weights?.dueDate ??
+          DEFAULT_SETTINGS.algorithm.weights.dueDate,
+      },
+    },
+    accessibility: {
+      highContrast:
+        incoming?.accessibility?.highContrast ??
+        existing?.accessibility?.highContrast ??
+        DEFAULT_SETTINGS.accessibility.highContrast,
+      dyslexiaFont:
+        incoming?.accessibility?.dyslexiaFont ??
+        existing?.accessibility?.dyslexiaFont ??
+        DEFAULT_SETTINGS.accessibility.dyslexiaFont,
+      boldText:
+        incoming?.accessibility?.boldText ??
+        existing?.accessibility?.boldText ??
+        DEFAULT_SETTINGS.accessibility.boldText,
+      fontScale:
+        incoming?.accessibility?.fontScale ??
+        existing?.accessibility?.fontScale ??
+        DEFAULT_SETTINGS.accessibility.fontScale,
+      font:
+        incoming?.accessibility?.font ??
+        existing?.accessibility?.font ??
+        DEFAULT_SETTINGS.accessibility.font,
+    },
+  };
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { setTheme } = useTheme();
+  const { updateSettings: updateA11ySettings } = useAccessibility();
+
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -41,6 +141,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     sessionStorage.setItem(PENDING_EMAIL_KEY, email);
   };
 
+  const applySettings = (settings?: UserSettings) => {
+    if (!settings) return;
+    if (settings.theme === 'light' || settings.theme === 'dark') {
+      setTheme(settings.theme);
+    }
+    if (settings.accessibility) {
+      updateA11ySettings({
+        highContrast: Boolean(settings.accessibility.highContrast),
+        dyslexiaFont: Boolean(
+          settings.accessibility.dyslexiaFont || settings.accessibility.font === 'dyslexic'
+        ),
+        boldText: Boolean(settings.accessibility.boldText),
+        fontScale:
+          typeof settings.accessibility.fontScale === 'number'
+            ? settings.accessibility.fontScale
+            : 100,
+        font:
+          settings.accessibility.font ||
+          (settings.accessibility.dyslexiaFont ? 'dyslexic' : 'inter'),
+      });
+    }
+  };
+
+  // Sync user settings whenever user is updated or changes
+  useEffect(() => {
+    if (user?.settings) {
+      applySettings(user.settings);
+    }
+  }, [user?.settings]);
+
   // Validate active token on initial app load
   useEffect(() => {
     const validateToken = async () => {
@@ -52,26 +182,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       try {
         const userData = await authApi.getMe(storedToken);
+        const resolvedSettings = mergeSettings(undefined, userData.settings);
         setUser({
           id: userData._id || userData.id,
           email: userData.email,
           displayName: userData.displayName || userData.email?.split('@')[0] || 'User',
           isVerified: userData.isVerified ?? true,
-          settings: userData.settings || {
-            theme: 'light',
-            dailyCap: 8,
-            taskCap: 4,
-            workDuration: 25,
-            breakDuration: 5,
-            chimeEnabled: true,
-            algorithm: {
-              invertConfidence: true,
-              weights: { confidence: 1.0, pomodoros: 1.0, dueDate: 1.0 },
-            },
-            accessibility: { highContrast: false, font: 'inter', fontScale: 100 },
-          },
+          settings: resolvedSettings,
         });
         setToken(storedToken);
+        applySettings(resolvedSettings);
       } catch (err) {
         console.warn('Session expired or invalid, logging out', err);
         localStorage.removeItem(TOKEN_KEY);
@@ -91,25 +211,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setToken(result.token);
 
     const u = result.user;
+    const resolvedSettings = mergeSettings(undefined, u.settings);
     setUser({
       id: u._id || u.id,
       email: u.email,
       displayName: u.displayName || u.email?.split('@')[0] || 'User',
       isVerified: u.isVerified ?? true,
-      settings: u.settings || {
-        theme: 'light',
-        dailyCap: 8,
-        taskCap: 4,
-        workDuration: 25,
-        breakDuration: 5,
-        chimeEnabled: true,
-        algorithm: {
-          invertConfidence: true,
-          weights: { confidence: 1.0, pomodoros: 1.0, dueDate: 1.0 },
-        },
-        accessibility: { highContrast: false, font: 'inter', fontScale: 100 },
-      },
+      settings: resolvedSettings,
     });
+    applySettings(resolvedSettings);
   };
 
   const signup = async (displayName: string, email: string, password: string) => {
@@ -149,7 +259,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateUser = (updatedUser: Partial<User>) => {
-    setUser((prev) => (prev ? { ...prev, ...updatedUser } : null));
+    setUser((prev) => {
+      if (!prev) return null;
+      const merged = updatedUser.settings
+        ? mergeSettings(prev.settings, updatedUser.settings)
+        : prev.settings;
+      const nextUser = {
+        ...prev,
+        ...updatedUser,
+        settings: merged,
+      };
+      if (updatedUser.settings) {
+        applySettings(merged);
+      }
+      return nextUser;
+    });
   };
 
   const refreshUser = async () => {
@@ -157,25 +281,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!storedToken) return;
     try {
       const userData = await authApi.getMe(storedToken);
-      setUser((prev) => ({
-        id: userData._id || userData.id || prev?.id || '',
-        email: userData.email || prev?.email || '',
-        displayName: userData.displayName || prev?.displayName || userData.email?.split('@')[0] || 'User',
-        isVerified: userData.isVerified ?? true,
-        settings: userData.settings || prev?.settings || {
-          theme: 'light',
-          dailyCap: 8,
-          taskCap: 4,
-          workDuration: 25,
-          breakDuration: 5,
-          chimeEnabled: true,
-          algorithm: {
-            invertConfidence: true,
-            weights: { confidence: 1.0, pomodoros: 1.0, dueDate: 1.0 },
-          },
-          accessibility: { highContrast: false, font: 'inter', fontScale: 100 },
-        },
-      }));
+      setUser((prev) => {
+        const resolvedSettings = mergeSettings(prev?.settings, userData.settings);
+        applySettings(resolvedSettings);
+        return {
+          id: userData._id || userData.id || prev?.id || '',
+          email: userData.email || prev?.email || '',
+          displayName:
+            userData.displayName || prev?.displayName || userData.email?.split('@')[0] || 'User',
+          isVerified: userData.isVerified ?? true,
+          settings: resolvedSettings,
+        };
+      });
     } catch (e) {
       console.warn('Failed to refresh user', e);
     }

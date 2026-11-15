@@ -8,14 +8,14 @@ export const WelcomePage: React.FC = () => {
       {/* Hero Section */}
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
         <div className="lg:col-span-6 space-y-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sage-100 text-sage-800 text-xs font-semibold tracking-wide">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sage-100 dark:bg-sage-900/60 text-sage-800 dark:text-sage-200 border border-transparent dark:border-sage-800 text-xs font-semibold tracking-wide">
             <Sparkles className="w-3.5 h-3.5" />
             Your personal workspace, on Web and Android
           </div>
 
           <h1 className="text-4xl sm:text-5xl font-extrabold text-content-primary tracking-tight leading-[1.15]">
             Big things. <br />
-            <span className="text-sage-700">Small steps.</span> <br />
+            <span className="text-sage-700 dark:text-sage-300">Small steps.</span> <br />
             Steadier days.
           </h1>
 
@@ -44,12 +44,12 @@ export const WelcomePage: React.FC = () => {
           <div className="rounded-3xl border border-surface-border bg-white p-6 shadow-xl relative overflow-hidden">
             <div className="flex items-center justify-between pb-4 border-b border-surface-border">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-wider text-sage-700">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-sage-700 dark:text-sage-300">
                   DAILY DIGEST · FRIDAY, OCTOBER 30
                 </p>
                 <h3 className="text-xl font-bold text-content-primary">A little forward.</h3>
               </div>
-              <span className="px-3 py-1 rounded-full bg-sage-50 border border-sage-200 text-xs font-medium text-sage-800">
+              <span className="px-3 py-1 rounded-full bg-sage-50 dark:bg-sage-900/40 border border-sage-200 dark:border-sage-800 text-xs font-medium text-sage-800 dark:text-sage-200">
                 2 of 5 tasks done
               </span>
             </div>
@@ -75,7 +75,7 @@ export const WelcomePage: React.FC = () => {
                   <div>
                     <p className="text-sm font-semibold text-content-primary">Read design notes</p>
                     <div className="flex items-center gap-2 text-xs text-content-muted mt-0.5">
-                      <span className="text-sage-700 font-medium">Learning</span>
+                      <span className="text-sage-700 dark:text-sage-300 font-medium">Learning</span>
                       <span>·</span>
                       <span>Confidence 7/10</span>
                       <span>·</span>
@@ -126,7 +126,7 @@ export const WelcomePage: React.FC = () => {
             </div>
 
             <div className="mt-4 pt-3 border-t border-surface-border text-center">
-              <p className="text-xs font-medium text-sage-700">
+              <p className="text-xs font-medium text-sage-700 dark:text-sage-300">
                 A realistic plan. Not an endless to-do list.
               </p>
             </div>
