@@ -1,7 +1,9 @@
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useTasks } from '../context/TaskContext';
-import { ArrowLeft, Check, Folder } from 'lucide-react';
+import { ArrowLeft, Check } from 'lucide-react';
+import { formatDueDate } from '../utils/scheduler';
+import { TaskActionsMenu } from '../components/tasks/TaskActionsMenu';
 
 export const GroupDetailPage: React.FC = () => {
   const { groupId } = useParams<{ groupId: string }>();
@@ -10,8 +12,13 @@ export const GroupDetailPage: React.FC = () => {
   const group = groups.find((g) => g._id === groupId);
   const groupName = group?.name || 'Group';
 
-  const assignedActive = tasks.filter((t) => t.groupId === groupId);
-  const assignedCompleted = completedTasks.filter((t) => t.groupId === groupId);
+  const allTasks = [...tasks, ...completedTasks];
+  const assignedActive = tasks.filter(
+    (t) => t.groupId === groupId && !t.isWorkspace && !allTasks.some((other) => other.parentTaskId === t._id)
+  );
+  const assignedCompleted = completedTasks.filter(
+    (t) => t.groupId === groupId && !t.isWorkspace && !allTasks.some((other) => other.parentTaskId === t._id)
+  );
   const totalAssigned = assignedActive.length + assignedCompleted.length;
 
   return (
@@ -72,13 +79,16 @@ export const GroupDetailPage: React.FC = () => {
                   <p className="text-sm font-bold text-content-primary">{task.name}</p>
                   <div className="flex items-center gap-2 text-xs text-content-muted mt-0.5">
                     <span>Importance: {Math.round((task.importance ?? 0.5) * 10)}/10</span>
-                    {task.dueDate && <span>· Due {new Date(task.dueDate).toLocaleDateString()}</span>}
+                    {task.dueDate && <span>· Due {formatDueDate(task.dueDate)}</span>}
                   </div>
                 </div>
               </div>
-              <span className="text-xs font-mono font-bold px-2 py-1 rounded bg-surface-subtle border border-surface-border">
-                {task.estPomodoros || 1} ◷
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono font-bold px-2 py-1 rounded bg-surface-subtle border border-surface-border">
+                  {task.estPomodoros || 1} ◷
+                </span>
+                <TaskActionsMenu task={task} />
+              </div>
             </div>
           ))}
 
@@ -86,7 +96,7 @@ export const GroupDetailPage: React.FC = () => {
             <div
               key={task._id}
               onClick={() => toggleTask(task._id, true)}
-              className="p-4 rounded-2xl border border-surface-border bg-surface-subtle/50 opacity-60 shadow-xs cursor-pointer flex items-center justify-between"
+              className="p-4 rounded-2xl border border-surface-border bg-surface-subtle/50 opacity-60 shadow-xs cursor-pointer flex items-center justify-between group"
             >
               <div className="flex items-center gap-3">
                 <div className="w-6 h-6 rounded-lg bg-sage-600 text-white flex items-center justify-center">
@@ -97,9 +107,12 @@ export const GroupDetailPage: React.FC = () => {
                   <span className="text-xs text-content-muted">Completed</span>
                 </div>
               </div>
-              <span className="text-xs font-mono font-bold px-2 py-1 rounded bg-surface-subtle border border-surface-border">
-                {task.estPomodoros || 1} ◷
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono font-bold px-2 py-1 rounded bg-surface-subtle border border-surface-border">
+                  {task.estPomodoros || 1} ◷
+                </span>
+                <TaskActionsMenu task={task} />
+              </div>
             </div>
           ))}
         </div>

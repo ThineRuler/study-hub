@@ -15,7 +15,7 @@ router.get('/', async (req, res) => {
   const groups = await Group.find({ userId: req.user.id }).sort({ sortOrder: 1, createdAt: 1 }).lean();
   const userId = new mongoose.Types.ObjectId(req.user.id);
   const counts = await Task.aggregate([
-    { $match: { userId } },
+    { $match: { userId, isWorkspace: { $ne: true } } },
     { $group: { _id: '$groupId', count: { $sum: 1 } } },
   ]);
   const countByGroup = new Map(counts.map((row) => [String(row._id), row.count]));

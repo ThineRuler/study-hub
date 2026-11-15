@@ -4,6 +4,7 @@ import { Input } from '../common/Input';
 import { Button } from '../common/Button';
 import { ConfidenceSlider } from '../common/ConfidenceSlider';
 import { useTasks } from '../../context/TaskContext';
+import { getLocalDateString } from '../../utils/scheduler';
 import { Plus, Trash2, ArrowLeft, ArrowRight, Check } from 'lucide-react';
 
 interface CreateTaskWizardModalProps {
@@ -30,7 +31,7 @@ export const CreateTaskWizardModal: React.FC<CreateTaskWizardModalProps> = ({
   const [subtasks, setSubtasks] = useState<LocalSubtask[]>([]);
   const [newSubtaskName, setNewSubtaskName] = useState('');
   const [selectedGroupId, setSelectedGroupId] = useState<string>('');
-  const [dueDate, setDueDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [dueDate, setDueDate] = useState(() => getLocalDateString());
   const [linkSubtaskDates, setLinkSubtaskDates] = useState(true);
   const [mainConfidence, setMainConfidence] = useState(8);
   const [mainPomodoros, setMainPomodoros] = useState(1);
@@ -79,27 +80,41 @@ export const CreateTaskWizardModal: React.FC<CreateTaskWizardModalProps> = ({
     setError('');
 
     try {
-      // 1. Create Parent Task
-      const parent = await createTask({
-        name: name.trim(),
-        groupId: activeGroupId || undefined,
-        dueDate,
-        importance: Math.min(1, Math.max(0, mainConfidence / 10)),
-        estPomodoros: totalPomodoros,
-      });
+      if (subtasks.length > 0) {
+        // 1. Create Parent Workspace Task
+        const parent = await createTask({
+          name: name.trim(),
+          groupId: activeGroupId || undefined,
+          dueDate,
+          importance: Math.min(1, Math.max(0, mainConfidence / 10)),
+          estPomodoros: totalPomodoros,
+          isWorkspace: true,
+        });
 
-      // 2. Create subtasks if any
-      if (subtasks.length > 0 && parent._id) {
-        for (const st of subtasks) {
-          await createTask({
-            name: st.name,
-            parentTaskId: parent._id,
-            groupId: activeGroupId || undefined,
-            dueDate: linkSubtaskDates ? dueDate : undefined,
-            importance: Math.min(1, Math.max(0, st.confidence / 10)),
-            estPomodoros: st.estPomodoros,
-          });
+        // 2. Create subtasks
+        if (parent._id) {
+          for (const st of subtasks) {
+            await createTask({
+              name: st.name,
+              parentTaskId: parent._id,
+              groupId: activeGroupId || undefined,
+              dueDate: linkSubtaskDates ? dueDate : undefined,
+              importance: Math.min(1, Math.max(0, st.confidence / 10)),
+              estPomodoros: st.estPomodoros,
+              isWorkspace: false,
+            });
+          }
         }
+      } else {
+        // Single standalone task
+        await createTask({
+          name: name.trim(),
+          groupId: activeGroupId || undefined,
+          dueDate,
+          importance: Math.min(1, Math.max(0, mainConfidence / 10)),
+          estPomodoros: mainPomodoros,
+          isWorkspace: false,
+        });
       }
 
       // Reset

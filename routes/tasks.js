@@ -4,20 +4,26 @@ const Group = require('../database/models/Groups');
 const User = require('../database/models/User');
 const auth = require('../middleware/verify');
 const { priorityScore } = require('../utils/priority');
+const { scheduleTasksForUser } = require('../utils/scheduler');
 
 const router = express.Router();
 router.use(auth);
 
-const PATCH_FIELDS = ['name', 'description', 'groupId', 'importance', 'estPomodoros', 'dueDate', 'completed', 'sortOrder'];
+const PATCH_FIELDS = ['name', 'description', 'groupId', 'importance', 'estPomodoros', 'dueDate', 'completed', 'sortOrder', 'isWorkspace'];
 
-async function weightsFor(userId) {
-  const user = await User.findById(userId).select('settings.weights').lean();
-  return user?.settings?.weights;
+async function algorithmSettingsFor(userId) {
+  const user = await User.findById(userId).select('settings.weights settings.invertConfidence').lean();
+  return {
+    weights: user?.settings?.weights,
+    invertConfidence: user?.settings?.invertConfidence,
+  };
 }
 
-function applyScores(tasks, weights) {
+function applyScores(tasks, algoSettings) {
+  const weights = algoSettings?.weights;
+  const options = { invertConfidence: algoSettings?.invertConfidence };
   for (const task of tasks) {
-    task.priorityScore = priorityScore(task, weights);
+    task.priorityScore = priorityScore(task, weights, options);
   }
 }
 
@@ -51,6 +57,7 @@ router.patch('/reorder', async (req, res) => {
 
   if (ops.length === 0) return res.json({ updated: 0 });
   const result = await Task.bulkWrite(ops);
+  await scheduleTasksForUser(req.user.id);
   res.json({ updated: result.matchedCount });
 });
 
@@ -82,17 +89,24 @@ router.get('/', async (req, res) => {
     }
   }
 
-  const [tasks, weights] = await Promise.all([
-    Task.find(filter).lean(),
-    weightsFor(req.user.id),
-  ]);
+  // Recalculate schedule rolling window for active tasks so it is always current
+  if (req.query.completed !== 'true') {
+    await scheduleTasksForUser(req.user.id);
+  }
 
-  applyScores(tasks, weights);
+  const tasks = await Task.find(filter).lean();
 
   if (req.query.completed === 'true') {
     tasks.sort((a, b) => new Date(b.completedAt || 0) - new Date(a.completedAt || 0));
   } else {
-    tasks.sort((a, b) => b.priorityScore - a.priorityScore);
+    // Sort primarily by scheduledDay ascending (Day 0 today, Day 1 tomorrow, ..., nulls deferred),
+    // and secondarily by priorityScore descending.
+    tasks.sort((a, b) => {
+      const dayA = a.scheduledDay != null ? a.scheduledDay : 999;
+      const dayB = b.scheduledDay != null ? b.scheduledDay : 999;
+      if (dayA !== dayB) return dayA - dayB;
+      return (b.priorityScore || 0) - (a.priorityScore || 0);
+    });
   }
 
   res.json(tasks);
@@ -102,12 +116,12 @@ router.get('/:id', async (req, res) => {
   const task = await Task.findOne({ _id: req.params.id, userId: req.user.id }).lean();
   if (!task) return res.status(404).json({ error: 'Task not found' });
 
-  const [subtasks, weights] = await Promise.all([
+  const [subtasks, algoSettings] = await Promise.all([
     Task.find({ parentTaskId: task._id, userId: req.user.id }).lean(),
-    weightsFor(req.user.id),
+    algorithmSettingsFor(req.user.id),
   ]);
 
-  applyScores([task, ...subtasks], weights);
+  applyScores([task, ...subtasks], algoSettings);
   task.subtasks = subtasks;
   res.json(task);
 });
@@ -116,7 +130,7 @@ router.post('/', async (req, res) => {
   const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
   if (!name) return res.status(400).json({ error: 'Name is required' });
 
-  const { description, groupId, parentTaskId, importance, estPomodoros, dueDate } = req.body;
+  const { description, groupId, parentTaskId, importance, estPomodoros, dueDate, isWorkspace } = req.body;
 
   if (groupId) {
     const group = await Group.findOne({ _id: groupId, userId: req.user.id }).select('_id');
@@ -134,14 +148,21 @@ router.post('/', async (req, res) => {
     ...(description !== undefined ? { description } : {}),
     ...(groupId ? { groupId } : {}),
     ...(parentTaskId ? { parentTaskId } : {}),
+    ...(isWorkspace !== undefined ? { isWorkspace } : {}),
     ...(importance !== undefined ? { importance } : {}),
     ...(estPomodoros !== undefined ? { estPomodoros } : {}),
     ...(dueDate !== undefined ? { dueDate } : {}),
   };
 
-  draft.priorityScore = priorityScore(draft, await weightsFor(req.user.id));
+  const algoSettings = await algorithmSettingsFor(req.user.id);
+  draft.priorityScore = priorityScore(draft, algoSettings.weights, { invertConfidence: algoSettings.invertConfidence });
   const task = await Task.create(draft);
-  res.status(201).json(task);
+
+  // Run the complete scheduling algorithm on task creation
+  await scheduleTasksForUser(req.user.id);
+  const scheduledTask = await Task.findById(task._id).lean();
+
+  res.status(201).json(scheduledTask || task);
 });
 
 router.patch('/:id', async (req, res) => {
@@ -173,7 +194,8 @@ router.patch('/:id', async (req, res) => {
   Object.assign(merged, $set);
   if ($set.completed === false) delete merged.completedAt;
 
-  $set.priorityScore = priorityScore(merged, await weightsFor(req.user.id));
+  const algoSettings = await algorithmSettingsFor(req.user.id);
+  $set.priorityScore = priorityScore(merged, algoSettings.weights, { invertConfidence: algoSettings.invertConfidence });
 
   const update = { $set };
   if (Object.keys($unset).length) update.$unset = $unset;
@@ -184,13 +206,52 @@ router.patch('/:id', async (req, res) => {
     { new: true, runValidators: true }
   );
 
-  res.json(updated);
+  // If this task has a parentTaskId, sync parent workspace completion state
+  const targetParentId = updated.parentTaskId || task.parentTaskId;
+  if (targetParentId) {
+    const siblings = await Task.find({ parentTaskId: targetParentId, userId: req.user.id });
+    if (siblings.length > 0) {
+      const allDone = siblings.every((s) => s.completed === true);
+      await Task.updateOne(
+        { _id: targetParentId, userId: req.user.id },
+        allDone
+          ? { $set: { completed: true, completedAt: new Date() } }
+          : { $set: { completed: false }, $unset: { completedAt: 1 } }
+      );
+    }
+  }
+
+  // Run the complete scheduling algorithm on task edit / completion toggle
+  await scheduleTasksForUser(req.user.id);
+  const scheduledTask = await Task.findById(updated._id).lean();
+
+  res.json(scheduledTask || updated);
 });
 
 router.delete('/:id', async (req, res) => {
-  const task = await Task.findOneAndDelete({ _id: req.params.id, userId: req.user.id });
+  const task = await Task.findOne({ _id: req.params.id, userId: req.user.id });
   if (!task) return res.status(404).json({ error: 'Task not found' });
+
+  const targetParentId = task.parentTaskId;
+  await Task.deleteOne({ _id: task._id, userId: req.user.id });
   await Task.deleteMany({ parentTaskId: task._id, userId: req.user.id });
+
+  if (targetParentId) {
+    const siblings = await Task.find({ parentTaskId: targetParentId, userId: req.user.id });
+    if (siblings.length > 0) {
+      const allDone = siblings.every((s) => s.completed === true);
+      await Task.updateOne(
+        { _id: targetParentId, userId: req.user.id },
+        allDone
+          ? { $set: { completed: true, completedAt: new Date() } }
+          : { $set: { completed: false }, $unset: { completedAt: 1 } }
+      );
+    }
+  }
+
+  // Run the complete scheduling algorithm on task deletion
+  await scheduleTasksForUser(req.user.id);
+
   res.status(204).end();
 });
 

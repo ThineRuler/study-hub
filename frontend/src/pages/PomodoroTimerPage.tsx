@@ -1,24 +1,47 @@
 import React, { useState, useEffect } from 'react';
 import { useTasks } from '../context/TaskContext';
+import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/common/Button';
-import { Play, Pause, RotateCcw, Volume2, VolumeX, CheckCircle, Clock } from 'lucide-react';
+import { Play, Pause, RotateCcw, Volume2, VolumeX } from 'lucide-react';
+import { formatDueDate } from '../utils/scheduler';
 
 export const PomodoroTimerPage: React.FC = () => {
-  const { tasks, completedTasks, groups, toggleTask } = useTasks();
+  const { tasks, completedTasks, groups } = useTasks();
+  const { user } = useAuth();
+
+  const workDuration = user?.settings?.workDuration ?? 25;
+  const breakDuration = user?.settings?.breakDuration ?? 5;
+  const chimeSetting = user?.settings?.chimeEnabled ?? true;
 
   const [mode, setMode] = useState<'work' | 'break'>('work');
-  const [secondsLeft, setSecondsLeft] = useState(25 * 60);
+  const [secondsLeft, setSecondsLeft] = useState(workDuration * 60);
   const [isActive, setIsActive] = useState(false);
-  const [chimeOn, setChimeOn] = useState(true);
+  const [chimeOn, setChimeOn] = useState(chimeSetting);
   const [selectedTaskId, setSelectedTaskId] = useState<string>('');
+
+  // Update timer duration when settings load or mode changes (if not running)
+  useEffect(() => {
+    if (!isActive) {
+      setSecondsLeft((mode === 'work' ? workDuration : breakDuration) * 60);
+    }
+  }, [mode, workDuration, breakDuration, isActive]);
+
+  useEffect(() => {
+    setChimeOn(chimeSetting);
+  }, [chimeSetting]);
 
   const groupMap = new Map(groups.map((g) => [g._id, g]));
 
-  const currentTaskId = selectedTaskId || tasks[0]?._id;
-  const currentTask = tasks.find((t) => t._id === currentTaskId) || tasks[0];
+  const actionableTasks = tasks.filter(
+    (t) => !t.isWorkspace && !tasks.some((other) => other.parentTaskId === t._id)
+  );
+  const currentTaskId = selectedTaskId || actionableTasks[0]?._id;
+  const currentTask = actionableTasks.find((t) => t._id === currentTaskId) || actionableTasks[0];
   const currentGroup = currentTask?.groupId ? groupMap.get(currentTask.groupId) : undefined;
 
-  const pomodorosCompleted = completedTasks.reduce((sum, t) => sum + (t.estPomodoros || 1), 0);
+  const pomodorosCompleted = completedTasks
+    .filter((t) => !t.isWorkspace && !completedTasks.some((other) => other.parentTaskId === t._id))
+    .reduce((sum, t) => sum + (t.estPomodoros || 1), 0);
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -51,12 +74,12 @@ export const PomodoroTimerPage: React.FC = () => {
   const toggleMode = (newMode: 'work' | 'break') => {
     setMode(newMode);
     setIsActive(false);
-    setSecondsLeft(newMode === 'work' ? 25 * 60 : 5 * 60);
+    setSecondsLeft((newMode === 'work' ? workDuration : breakDuration) * 60);
   };
 
   const resetTimer = () => {
     setIsActive(false);
-    setSecondsLeft(mode === 'work' ? 25 * 60 : 5 * 60);
+    setSecondsLeft((mode === 'work' ? workDuration : breakDuration) * 60);
   };
 
   const minutes = Math.floor(secondsLeft / 60);
@@ -92,7 +115,7 @@ export const PomodoroTimerPage: React.FC = () => {
                 mode === 'work' ? 'bg-white text-sage-900 shadow-xs' : 'text-content-secondary hover:text-content-primary'
               }`}
             >
-              Work (25 min)
+              Work ({workDuration} min)
             </button>
             <button
               type="button"
@@ -101,7 +124,7 @@ export const PomodoroTimerPage: React.FC = () => {
                 mode === 'break' ? 'bg-white text-sage-900 shadow-xs' : 'text-content-secondary hover:text-content-primary'
               }`}
             >
-              Break (5 min)
+              Break ({breakDuration} min)
             </button>
           </div>
 
@@ -170,16 +193,16 @@ export const PomodoroTimerPage: React.FC = () => {
                 Select a task to focus on.
               </p>
             </div>
-            <span className="text-xs font-semibold text-sage-700">{tasks.length} queued</span>
+            <span className="text-xs font-semibold text-sage-700">{actionableTasks.length} queued</span>
           </div>
 
-          {tasks.length === 0 ? (
+          {actionableTasks.length === 0 ? (
             <div className="p-8 text-center text-xs text-content-muted border border-dashed border-surface-border rounded-xl">
               No active tasks right now. Click "Create Task" in the sidebar to add one.
             </div>
           ) : (
             <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-              {tasks.map((t) => {
+              {actionableTasks.map((t) => {
                 const isSelected = t._id === currentTaskId;
                 const grp = t.groupId ? groupMap.get(t.groupId) : undefined;
                 return (
@@ -199,7 +222,7 @@ export const PomodoroTimerPage: React.FC = () => {
                       <p className="text-xs font-bold text-content-primary">{t.name}</p>
                       <div className="flex items-center gap-2 text-[11px] text-content-muted mt-0.5">
                         {grp && <span className="font-semibold" style={{ color: grp.color }}>{grp.name}</span>}
-                        {t.dueDate && <span>· Due {new Date(t.dueDate).toLocaleDateString()}</span>}
+                        {t.dueDate && <span>· Due {formatDueDate(t.dueDate)}</span>}
                       </div>
                     </div>
                     <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-surface-subtle border border-surface-border">

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTasks } from '../../context/TaskContext';
@@ -7,6 +7,7 @@ import { GroupActionsMenu } from '../groups/GroupActionsMenu';
 import { Modal } from '../common/Modal';
 import { Input } from '../common/Input';
 import { Button } from '../common/Button';
+import { computeClientSchedule, getLocalDateString, parseCalendarDate } from '../../utils/scheduler';
 import {
   SunMedium,
   CalendarDays,
@@ -62,12 +63,50 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
     onCloseMobile?.();
   };
 
+  const dailyCap = user?.settings?.dailyCap || 8;
+  const todayStr = getLocalDateString();
+  const allTasks = useMemo(() => [...tasks, ...completedTasks], [tasks, completedTasks]);
+
+  // Exclude parent workspace containers from completed today so pomodoros are not double counted
+  const completedToday = useMemo(() => {
+    return completedTasks.filter((t) => {
+      if (!t.completedAt) return false;
+      if (t.isWorkspace) return false;
+      if (allTasks.some((other) => other.parentTaskId === t._id)) return false;
+      const parts = parseCalendarDate(t.completedAt);
+      return parts ? parts.dateStr === todayStr : false;
+    });
+  }, [completedTasks, allTasks, todayStr]);
+
+  const pomodorosCompletedToday = useMemo(() => {
+    return completedToday.reduce((sum, t) => sum + (t.estPomodoros || 1), 0);
+  }, [completedToday]);
+
+  const schedule = useMemo(() => {
+    return computeClientSchedule(
+      tasks,
+      {
+        dailyCap,
+        weights: user?.settings?.weights,
+        invertConfidence: user?.settings?.invertConfidence,
+      },
+      {
+        completedTodayPomodoros: pomodorosCompletedToday,
+      }
+    );
+  }, [tasks, dailyCap, user?.settings?.weights, user?.settings?.invertConfidence, pomodorosCompletedToday]);
+
+  const todayTasksCount = schedule.todayTasks.length;
+  const completedTasksCount = completedTasks.filter(
+    (t) => !t.isWorkspace && !completedTasks.some((other) => other.parentTaskId === t._id)
+  ).length;
+
   const navItems = [
-    { path: '/dashboard', label: 'Daily Digest', icon: SunMedium, badge: tasks.length || undefined },
+    { path: '/dashboard', label: 'Daily Digest', icon: SunMedium, badge: todayTasksCount || undefined },
     { path: '/next-7-days', label: 'Next 7 Days', icon: CalendarDays },
     { path: '/timer', label: 'Pomodoro Timer', icon: Timer },
     { path: '/calendar', label: 'Calendar', icon: Calendar },
-    { path: '/completed', label: 'Completed', icon: CheckCircle2, badge: completedTasks.length || undefined },
+    { path: '/completed', label: 'Completed', icon: CheckCircle2, badge: completedTasksCount || undefined },
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -117,7 +156,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
         <div className="space-y-6">
           {/* Workspace Title */}
           <div className="px-2 pt-2">
-            <p className="text-[10px] font-extrabold tracking-widest uppercase text-sage-700 dark:text-sage-400">
+            <p className="text-xs font-extrabold tracking-widest uppercase text-sage-700 dark:text-sage-400">
               {user?.displayName ? `${user.displayName.toUpperCase()}'S` : 'PERSONAL'}
             </p>
             <h2 className="text-sm font-bold text-content-primary tracking-tight">
@@ -179,7 +218,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
           {/* Groups Section with Drag-and-Drop */}
           <div className="pt-2">
             <div className="flex items-center justify-between px-3 mb-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-content-muted">
+              <span className="text-xs font-bold uppercase tracking-wider text-content-muted">
                 GROUPS
               </span>
               <Link
@@ -213,11 +252,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
                       className="w-2.5 h-2.5 rounded-full shrink-0"
                       style={{ backgroundColor: grp.color || '#10B981' }}
                     />
-                    <span className="truncate max-w-[100px] text-xs font-semibold">{grp.name}</span>
+                    <span className="truncate text-xs font-semibold">{grp.name}</span>
                   </Link>
 
                   <div className="flex items-center gap-1 shrink-0">
-                    <span className="text-[11px] font-semibold text-content-muted">{grp.taskCount || 0}</span>
+                    <span className="text-xs font-semibold text-content-muted">{grp.taskCount || 0}</span>
                     <GroupActionsMenu group={grp} align="right" />
                   </div>
                 </div>

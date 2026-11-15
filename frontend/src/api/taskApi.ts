@@ -3,6 +3,7 @@ export interface TaskPayload {
   description?: string;
   groupId?: string;
   parentTaskId?: string;
+  isWorkspace?: boolean;
   importance?: number;
   estPomodoros?: number;
   dueDate?: string;
@@ -14,12 +15,15 @@ export interface TaskItem {
   userId: string;
   groupId?: string;
   parentTaskId?: string;
+  isWorkspace?: boolean;
   name: string;
   description?: string;
   importance: number;
   estPomodoros: number;
   dueDate?: string;
   priorityScore?: number;
+  scheduledDate?: string;
+  scheduledDay?: number | null;
   sortOrder: number;
   completed: boolean;
   completedAt?: string;
