@@ -29,6 +29,7 @@ import { GroupDetailPage } from './pages/GroupDetailPage';
 import { CalendarPage } from './pages/CalendarPage';
 import { CompletedPage } from './pages/CompletedPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { SearchPage } from './pages/SearchPage';
 
 export const App: React.FC = () => {
   return (
@@ -63,6 +64,7 @@ export const App: React.FC = () => {
               <Route path="/calendar" element={<CalendarPage />} />
               <Route path="/completed" element={<CompletedPage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/search" element={<SearchPage />} />
             </Route>
 
             {/* Fallback Catch-all */}
