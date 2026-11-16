@@ -1,12 +1,15 @@
 import React, { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTasks } from '../context/TaskContext';
+import { useTimer } from '../context/TimerContext';
 import { Button } from '../components/common/Button';
 import { OverrunModal } from '../components/tasks/OverrunModal';
 import { TaskActionsMenu } from '../components/tasks/TaskActionsMenu';
-import { computeClientSchedule, formatDueDate, getLocalDateString, parseCalendarDate } from '../utils/scheduler';
+import { computeClientSchedule, formatDueDate, getLocalDateString, parseCalendarDate, isCompletedToday } from '../utils/scheduler';
 import {
   Play,
+  Pause,
   AlertCircle,
   Sparkles,
 } from 'lucide-react';
@@ -15,8 +18,17 @@ export const DailyDigestPage: React.FC = () => {
   const { user } = useAuth();
   const { tasks, completedTasks, groups, toggleTask } = useTasks();
 
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const [timerSeconds] = useState(25 * 60);
+  const {
+    mode,
+    timeFormatted,
+    isActive,
+    toggleTimer,
+    currentTask,
+    setSelectedTaskId,
+    workDuration,
+    breakDuration,
+  } = useTimer();
+
   const [showOverrunModal, setShowOverrunModal] = useState(false);
   const [overrunTaskName, setOverrunTaskName] = useState('');
 
@@ -39,11 +51,9 @@ export const DailyDigestPage: React.FC = () => {
   // Actionable completed today metrics (exclude parent workspace containers to avoid double-counting pomodoros)
   const completedToday = useMemo(() => {
     return completedTasks.filter((t) => {
-      if (!t.completedAt) return false;
       if (t.isWorkspace) return false;
       if (allTasks.some((other) => other.parentTaskId === t._id)) return false;
-      const parts = parseCalendarDate(t.completedAt);
-      return parts ? parts.dateStr === todayStr : false;
+      return isCompletedToday(t.completedAt || t.updatedAt, todayStr);
     });
   }, [completedTasks, allTasks, todayStr]);
 
@@ -77,12 +87,6 @@ export const DailyDigestPage: React.FC = () => {
   }, [tasks, allTasks]);
 
   const currentFocusTask = todayTasks[0] || actionableActiveTasks[0];
-
-  const formatTimer = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
 
   const handleToggle = async (id: string, completed: boolean) => {
     await toggleTask(id, completed);
@@ -240,33 +244,48 @@ export const DailyDigestPage: React.FC = () => {
         {/* Mini Pomodoro Focus Widget */}
         <div className="p-5 rounded-2xl bg-white dark:bg-surface-card border border-surface-border shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-content-muted">
+            <Link
+              to="/timer"
+              className="text-xs font-bold uppercase tracking-wider text-content-muted hover:text-sage-700 dark:hover:text-sage-300 transition-colors"
+            >
               Ready when you are
-            </span>
+            </Link>
             <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-sage-100 dark:bg-sage-900 text-sage-800 dark:text-sage-200">
-              Work session
+              {mode === 'work' ? 'Work session' : 'Break session'}
             </span>
           </div>
           <div className="flex items-center justify-between my-2">
             <div>
               <p className="text-3xl font-black font-mono text-content-primary">
-                {formatTimer(timerSeconds)}
+                {timeFormatted}
               </p>
-              <p className="text-xs text-content-secondary truncate max-w-[150px]">
-                {currentFocusTask?.name || 'No task selected'}
+              <p className="text-xs text-content-secondary truncate max-w-[150px]" title={currentTask?.name || currentFocusTask?.name}>
+                {currentTask?.name || currentFocusTask?.name || 'General Focus'}
               </p>
             </div>
             <Button
               size="sm"
-              variant={isTimerRunning ? 'outline' : 'primary'}
-              disabled={!currentFocusTask}
-              onClick={() => setIsTimerRunning(!isTimerRunning)}
+              variant={isActive ? 'outline' : 'primary'}
+              onClick={() => {
+                if (!currentTask && currentFocusTask) {
+                  setSelectedTaskId(currentFocusTask._id);
+                }
+                toggleTimer();
+              }}
             >
-              <Play className="w-3.5 h-3.5 mr-1" />
-              {isTimerRunning ? 'Pause' : 'Start focus'}
+              {isActive ? <Pause className="w-3.5 h-3.5 mr-1" /> : <Play className="w-3.5 h-3.5 mr-1" />}
+              {isActive ? 'Pause' : 'Start focus'}
             </Button>
           </div>
-          <p className="text-[11px] text-content-muted">25 min work · 5 min recharge</p>
+          <div className="flex items-center justify-between text-[11px] text-content-muted">
+            <span>{workDuration} min work · {breakDuration} min recharge</span>
+            <Link
+              to="/timer"
+              className="font-medium text-sage-600 hover:text-sage-800 dark:text-sage-400 dark:hover:text-sage-200 transition-colors"
+            >
+              Open timer &rarr;
+            </Link>
+          </div>
         </div>
       </div>
 

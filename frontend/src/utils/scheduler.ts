@@ -44,6 +44,13 @@ export function parseCalendarDate(dueDate?: string | Date): { year: number; mont
   };
 }
 
+export function isCompletedToday(completedAt?: string | Date, todayStr: string = getLocalDateString()): boolean {
+  if (!completedAt) return false;
+  const d = typeof completedAt === 'string' ? new Date(completedAt) : completedAt;
+  if (isNaN(d.getTime())) return false;
+  return getLocalDateString(d) === todayStr;
+}
+
 export function formatDueDate(dueDate?: string | Date): string {
   if (!dueDate) return '';
   const parsed = parseCalendarDate(dueDate);

@@ -10,6 +10,7 @@ import { AccessibilityProvider } from './context/AccessibilityContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import { TaskProvider } from './context/TaskContext';
+import { TimerProvider } from './context/TimerContext';
 
 // Layouts
 import { PublicLayout } from './components/layout/PublicLayout';
@@ -82,7 +83,9 @@ export const App: React.FC = () => {
       <AccessibilityProvider>
         <AuthProvider>
           <TaskProvider>
-            <RouterProvider router={router} />
+            <TimerProvider>
+              <RouterProvider router={router} />
+            </TimerProvider>
           </TaskProvider>
         </AuthProvider>
       </AccessibilityProvider>

@@ -7,7 +7,7 @@ import { GroupActionsMenu } from '../groups/GroupActionsMenu';
 import { Modal } from '../common/Modal';
 import { Input } from '../common/Input';
 import { Button } from '../common/Button';
-import { computeClientSchedule, getLocalDateString, parseCalendarDate } from '../../utils/scheduler';
+import { computeClientSchedule, getLocalDateString, isCompletedToday } from '../../utils/scheduler';
 import {
   SunMedium,
   CalendarDays,
@@ -70,11 +70,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
   // Exclude parent workspace containers from completed today so pomodoros are not double counted
   const completedToday = useMemo(() => {
     return completedTasks.filter((t) => {
-      if (!t.completedAt) return false;
       if (t.isWorkspace) return false;
       if (allTasks.some((other) => other.parentTaskId === t._id)) return false;
-      const parts = parseCalendarDate(t.completedAt);
-      return parts ? parts.dateStr === todayStr : false;
+      return isCompletedToday(t.completedAt || t.updatedAt, todayStr);
     });
   }, [completedTasks, allTasks, todayStr]);
 
