@@ -154,24 +154,27 @@ export const CreateTaskWizardModal: React.FC<CreateTaskWizardModalProps> = ({
         )}
 
         {/* Wizard Step Breadcrumbs */}
-        <div className="flex items-center justify-between text-xs text-content-muted border-b border-surface-border pb-3 overflow-x-auto">
+        <div className="flex items-center gap-1.5 text-xs text-content-muted border-b border-surface-border pb-3 overflow-x-auto">
           {stepTitles.map((title, idx) => {
             const num = idx + 1;
             const isCurrent = step === num;
             const isPast = step > num;
             return (
-              <span
+              <button
                 key={num}
-                className={`font-semibold shrink-0 px-2 py-1 rounded-md ${
+                type="button"
+                disabled={!isPast}
+                onClick={() => isPast && setStep(num)}
+                className={`font-semibold shrink-0 px-2.5 py-1 rounded-md transition-colors text-left ${
                   isCurrent
-                    ? 'text-sage-800 bg-sage-100'
+                    ? 'text-sage-800 bg-sage-100 dark:bg-sage-900/60 dark:text-sage-200'
                     : isPast
-                    ? 'text-sage-600'
-                    : 'text-content-muted'
+                    ? 'text-sage-600 dark:text-sage-400 hover:text-sage-800 dark:hover:text-sage-200 cursor-pointer'
+                    : 'text-content-muted cursor-default'
                 }`}
               >
-                {num} · {title.split(' ')[0]}
-              </span>
+                {num} · {title}
+              </button>
             );
           })}
         </div>

@@ -1,34 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useTasks } from '../context/TaskContext';
-import { useAuth } from '../context/AuthContext';
+import { useTimer } from '../context/TimerContext';
 import { Button } from '../components/common/Button';
 import { Play, Pause, RotateCcw, Volume2, VolumeX } from 'lucide-react';
-import { formatDueDate } from '../utils/scheduler';
+import { formatDueDate, getLocalDateString, parseCalendarDate } from '../utils/scheduler';
 
 export const PomodoroTimerPage: React.FC = () => {
   const { tasks, completedTasks, groups } = useTasks();
-  const { user } = useAuth();
-
-  const workDuration = user?.settings?.workDuration ?? 25;
-  const breakDuration = user?.settings?.breakDuration ?? 5;
-  const chimeSetting = user?.settings?.chimeEnabled ?? true;
-
-  const [mode, setMode] = useState<'work' | 'break'>('work');
-  const [secondsLeft, setSecondsLeft] = useState(workDuration * 60);
-  const [isActive, setIsActive] = useState(false);
-  const [chimeOn, setChimeOn] = useState(chimeSetting);
-  const [selectedTaskId, setSelectedTaskId] = useState<string>('');
-
-  // Update timer duration when settings load or mode changes (if not running)
-  useEffect(() => {
-    if (!isActive) {
-      setSecondsLeft((mode === 'work' ? workDuration : breakDuration) * 60);
-    }
-  }, [mode, workDuration, breakDuration, isActive]);
-
-  useEffect(() => {
-    setChimeOn(chimeSetting);
-  }, [chimeSetting]);
+  const {
+    mode,
+    timeFormatted,
+    isActive,
+    chimeOn,
+    selectedTaskId,
+    workDuration,
+    breakDuration,
+    toggleTimer,
+    resetTimer,
+    setMode,
+    setChimeOn,
+    setSelectedTaskId,
+  } = useTimer();
 
   const groupMap = new Map(groups.map((g) => [g._id, g]));
 
@@ -39,58 +31,28 @@ export const PomodoroTimerPage: React.FC = () => {
   const currentTask = actionableTasks.find((t) => t._id === currentTaskId) || actionableTasks[0];
   const currentGroup = currentTask?.groupId ? groupMap.get(currentTask.groupId) : undefined;
 
+  const todayStr = getLocalDateString();
   const pomodorosCompleted = completedTasks
-    .filter((t) => !t.isWorkspace && !completedTasks.some((other) => other.parentTaskId === t._id))
-    .reduce((sum, t) => sum + (t.estPomodoros || 1), 0);
-
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
-    if (isActive && secondsLeft > 0) {
-      interval = setInterval(() => {
-        setSecondsLeft((prev) => prev - 1);
-      }, 1000);
-    } else if (secondsLeft === 0) {
-      setIsActive(false);
-      if (chimeOn) {
-        try {
-          const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-          const osc = audioCtx.createOscillator();
-          const gain = audioCtx.createGain();
-          osc.connect(gain);
-          gain.connect(audioCtx.destination);
-          osc.frequency.value = mode === 'work' ? 587.33 : 880;
-          gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.2);
-          osc.start();
-          osc.stop(audioCtx.currentTime + 1.2);
-        } catch {
-          // AudioCtx not allowed
-        }
+    .filter((t) => {
+      if (t.isWorkspace) return false;
+      if (completedTasks.some((other) => other.parentTaskId === t._id)) return false;
+      if (t.completedAt) {
+        const parts = parseCalendarDate(t.completedAt);
+        return parts ? parts.dateStr === todayStr : false;
       }
-    }
-    return () => clearInterval(interval);
-  }, [isActive, secondsLeft, chimeOn, mode]);
+      return true;
+    })
+    .reduce((sum, t) => sum + (t.estPomodoros || 1), 0);
 
   const toggleMode = (newMode: 'work' | 'break') => {
     setMode(newMode);
-    setIsActive(false);
-    setSecondsLeft((newMode === 'work' ? workDuration : breakDuration) * 60);
   };
-
-  const resetTimer = () => {
-    setIsActive(false);
-    setSecondsLeft((mode === 'work' ? workDuration : breakDuration) * 60);
-  };
-
-  const minutes = Math.floor(secondsLeft / 60);
-  const seconds = secondsLeft % 60;
-  const timeFormatted = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       {/* Header */}
       <div>
-        <div className="flex items-center gap-2 text-xs font-bold tracking-wider uppercase text-sage-700 mb-1">
+        <div className="flex items-center gap-2 text-xs font-bold tracking-wider uppercase text-sage-700 dark:text-sage-400 mb-1">
           <span>POMODORO TIMER</span>
           <span>·</span>
           <span>ONE THING AT A TIME</span>
@@ -105,14 +67,16 @@ export const PomodoroTimerPage: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Main Interactive Clock Panel */}
-        <div className="lg:col-span-7 rounded-3xl border border-surface-border bg-white p-8 sm:p-10 shadow-lg text-center space-y-6">
+        <div className="lg:col-span-7 rounded-3xl border border-surface-border bg-white dark:bg-surface-card p-8 sm:p-10 shadow-lg text-center space-y-6">
           {/* Mode Switcher */}
           <div className="inline-flex rounded-xl bg-surface-subtle p-1 border border-surface-border">
             <button
               type="button"
               onClick={() => toggleMode('work')}
               className={`px-5 py-2 rounded-lg text-xs font-bold transition-all ${
-                mode === 'work' ? 'bg-white text-sage-900 shadow-xs' : 'text-content-secondary hover:text-content-primary'
+                mode === 'work'
+                  ? 'bg-white dark:bg-surface-card text-sage-900 dark:text-sage-100 shadow-xs'
+                  : 'text-content-secondary hover:text-content-primary'
               }`}
             >
               Work ({workDuration} min)
@@ -121,7 +85,9 @@ export const PomodoroTimerPage: React.FC = () => {
               type="button"
               onClick={() => toggleMode('break')}
               className={`px-5 py-2 rounded-lg text-xs font-bold transition-all ${
-                mode === 'break' ? 'bg-white text-sage-900 shadow-xs' : 'text-content-secondary hover:text-content-primary'
+                mode === 'break'
+                  ? 'bg-white dark:bg-surface-card text-sage-900 dark:text-sage-100 shadow-xs'
+                  : 'text-content-secondary hover:text-content-primary'
               }`}
             >
               Break ({breakDuration} min)
@@ -130,7 +96,7 @@ export const PomodoroTimerPage: React.FC = () => {
 
           {/* Active Task Tag */}
           <div className="space-y-1">
-            <span className="text-xs font-bold text-sage-700 uppercase tracking-wider">
+            <span className="text-xs font-bold text-sage-700 dark:text-sage-400 uppercase tracking-wider">
               {currentGroup?.name || 'General Focus'}
             </span>
             <h3 className="text-lg font-bold text-content-primary">
@@ -148,7 +114,7 @@ export const PomodoroTimerPage: React.FC = () => {
             <div className="text-6xl sm:text-7xl font-mono font-black text-content-primary tracking-tight">
               {timeFormatted}
             </div>
-            <p className="text-xs font-semibold text-sage-700 uppercase tracking-widest mt-2">
+            <p className="text-xs font-semibold text-sage-700 dark:text-sage-400 uppercase tracking-widest mt-2">
               {isActive ? 'FOCUS IN PROGRESS' : 'READY FOR A FRESH SESSION'}
             </p>
           </div>
@@ -158,7 +124,7 @@ export const PomodoroTimerPage: React.FC = () => {
             <Button
               size="lg"
               variant={isActive ? 'outline' : 'primary'}
-              onClick={() => setIsActive(!isActive)}
+              onClick={toggleTimer}
               className="px-8 shadow-sm"
             >
               {isActive ? <Pause className="w-4 h-4 mr-1.5" /> : <Play className="w-4 h-4 mr-1.5" />}
@@ -177,7 +143,7 @@ export const PomodoroTimerPage: React.FC = () => {
               onClick={() => setChimeOn(!chimeOn)}
               className="flex items-center gap-1.5 hover:text-content-primary transition-colors"
             >
-              {chimeOn ? <Volume2 className="w-4 h-4 text-sage-600" /> : <VolumeX className="w-4 h-4" />}
+              {chimeOn ? <Volume2 className="w-4 h-4 text-sage-600 dark:text-sage-400" /> : <VolumeX className="w-4 h-4" />}
               <span>Chime {chimeOn ? 'on' : 'muted'} (gentle bell at end)</span>
             </button>
             <span>Today: {pomodorosCompleted} / 8 counted</span>
@@ -185,7 +151,7 @@ export const PomodoroTimerPage: React.FC = () => {
         </div>
 
         {/* Task Queue Selector */}
-        <div className="lg:col-span-5 rounded-3xl border border-surface-border bg-white p-6 shadow-xs space-y-4">
+        <div className="lg:col-span-5 rounded-3xl border border-surface-border bg-white dark:bg-surface-card p-6 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h4 className="text-sm font-bold text-content-primary">Today's queue</h4>
@@ -193,7 +159,7 @@ export const PomodoroTimerPage: React.FC = () => {
                 Select a task to focus on.
               </p>
             </div>
-            <span className="text-xs font-semibold text-sage-700">{actionableTasks.length} queued</span>
+            <span className="text-xs font-semibold text-sage-700 dark:text-sage-400">{actionableTasks.length} queued</span>
           </div>
 
           {actionableTasks.length === 0 ? (
@@ -213,8 +179,8 @@ export const PomodoroTimerPage: React.FC = () => {
                       p-3.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between
                       ${
                         isSelected
-                          ? 'border-sage-600 bg-sage-50/80 ring-2 ring-sage-600/20'
-                          : 'border-surface-border bg-white hover:border-sage-300'
+                          ? 'border-sage-600 bg-sage-50/80 dark:bg-sage-900/40 ring-2 ring-sage-600/20'
+                          : 'border-surface-border bg-white dark:bg-surface-card hover:border-sage-300 dark:hover:border-sage-700'
                       }
                     `}
                   >
