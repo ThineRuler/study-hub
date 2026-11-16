@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useTasks } from '../context/TaskContext';
 import { useAuth } from '../context/AuthContext';
-import { computeClientSchedule, getLocalDateString, parseCalendarDate } from '../utils/scheduler';
+import { computeClientSchedule, getLocalDateString, isCompletedToday } from '../utils/scheduler';
 import { TaskActionsMenu } from '../components/tasks/TaskActionsMenu';
 import { AlertCircle } from 'lucide-react';
 
@@ -18,11 +18,9 @@ export const Next7DaysPage: React.FC = () => {
   // Exclude parent workspace containers from completed today so pomodoros are not double counted
   const completedToday = useMemo(() => {
     return completedTasks.filter((t) => {
-      if (!t.completedAt) return false;
       if (t.isWorkspace) return false;
       if (allTasks.some((other) => other.parentTaskId === t._id)) return false;
-      const parts = parseCalendarDate(t.completedAt);
-      return parts ? parts.dateStr === todayStr : false;
+      return isCompletedToday(t.completedAt || t.updatedAt, todayStr);
     });
   }, [completedTasks, allTasks, todayStr]);
 

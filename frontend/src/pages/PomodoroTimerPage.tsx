@@ -1,11 +1,13 @@
 import React from 'react';
+import { useAuth } from '../context/AuthContext';
 import { useTasks } from '../context/TaskContext';
 import { useTimer } from '../context/TimerContext';
 import { Button } from '../components/common/Button';
 import { Play, Pause, RotateCcw, Volume2, VolumeX } from 'lucide-react';
-import { formatDueDate, getLocalDateString, parseCalendarDate } from '../utils/scheduler';
+import { formatDueDate, getLocalDateString, isCompletedToday } from '../utils/scheduler';
 
 export const PomodoroTimerPage: React.FC = () => {
+  const { user } = useAuth();
   const { tasks, completedTasks, groups } = useTasks();
   const {
     mode,
@@ -22,6 +24,7 @@ export const PomodoroTimerPage: React.FC = () => {
     setSelectedTaskId,
   } = useTimer();
 
+  const dailyCap = user?.settings?.dailyCap || 8;
   const groupMap = new Map(groups.map((g) => [g._id, g]));
 
   const actionableTasks = tasks.filter(
@@ -36,11 +39,7 @@ export const PomodoroTimerPage: React.FC = () => {
     .filter((t) => {
       if (t.isWorkspace) return false;
       if (completedTasks.some((other) => other.parentTaskId === t._id)) return false;
-      if (t.completedAt) {
-        const parts = parseCalendarDate(t.completedAt);
-        return parts ? parts.dateStr === todayStr : false;
-      }
-      return true;
+      return isCompletedToday(t.completedAt || t.updatedAt, todayStr);
     })
     .reduce((sum, t) => sum + (t.estPomodoros || 1), 0);
 
@@ -146,7 +145,7 @@ export const PomodoroTimerPage: React.FC = () => {
               {chimeOn ? <Volume2 className="w-4 h-4 text-sage-600 dark:text-sage-400" /> : <VolumeX className="w-4 h-4" />}
               <span>Chime {chimeOn ? 'on' : 'muted'} (gentle bell at end)</span>
             </button>
-            <span>Today: {pomodorosCompleted} / 8 counted</span>
+            <span>Today: {pomodorosCompleted} / {dailyCap} counted</span>
           </div>
         </div>
 

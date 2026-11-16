@@ -21,17 +21,21 @@ export interface ScheduleResult {
 
 export function parseCalendarDate(dueDate?: string | Date): { year: number; month: number; day: number; dateStr: string } | null {
   if (!dueDate) return null;
-  const str = typeof dueDate === 'string' ? dueDate : dueDate.toISOString();
-  const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (match) {
+
+  // 1. If it's a date-only string like "YYYY-MM-DD", treat it as a calendar date without timezone shift
+  if (typeof dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dueDate.trim())) {
+    const trimmed = dueDate.trim();
+    const [y, m, d] = trimmed.split('-');
     return {
-      year: parseInt(match[1], 10),
-      month: parseInt(match[2], 10),
-      day: parseInt(match[3], 10),
-      dateStr: `${match[1]}-${match[2]}-${match[3]}`,
+      year: parseInt(y, 10),
+      month: parseInt(m, 10),
+      day: parseInt(d, 10),
+      dateStr: trimmed,
     };
   }
-  const d = new Date(dueDate);
+
+  // 2. If it has time information (ISO timestamp) or is a Date object, parse in user's local timezone
+  const d = typeof dueDate === 'string' ? new Date(dueDate) : dueDate;
   if (isNaN(d.getTime())) return null;
   const year = d.getFullYear();
   const month = d.getMonth() + 1;
@@ -42,6 +46,12 @@ export function parseCalendarDate(dueDate?: string | Date): { year: number; mont
     day,
     dateStr: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
   };
+}
+
+export function isCompletedToday(completedAt?: string | Date, todayStr: string = getLocalDateString()): boolean {
+  if (!completedAt) return false;
+  const parsed = parseCalendarDate(completedAt);
+  return parsed ? parsed.dateStr === todayStr : false;
 }
 
 export function formatDueDate(dueDate?: string | Date): string {

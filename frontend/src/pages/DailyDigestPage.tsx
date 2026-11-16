@@ -6,7 +6,7 @@ import { useTimer } from '../context/TimerContext';
 import { Button } from '../components/common/Button';
 import { OverrunModal } from '../components/tasks/OverrunModal';
 import { TaskActionsMenu } from '../components/tasks/TaskActionsMenu';
-import { computeClientSchedule, formatDueDate, getLocalDateString, parseCalendarDate } from '../utils/scheduler';
+import { computeClientSchedule, formatDueDate, getLocalDateString, parseCalendarDate, isCompletedToday } from '../utils/scheduler';
 import {
   Play,
   Pause,
@@ -51,11 +51,9 @@ export const DailyDigestPage: React.FC = () => {
   // Actionable completed today metrics (exclude parent workspace containers to avoid double-counting pomodoros)
   const completedToday = useMemo(() => {
     return completedTasks.filter((t) => {
-      if (!t.completedAt) return false;
       if (t.isWorkspace) return false;
       if (allTasks.some((other) => other.parentTaskId === t._id)) return false;
-      const parts = parseCalendarDate(t.completedAt);
-      return parts ? parts.dateStr === todayStr : false;
+      return isCompletedToday(t.completedAt || t.updatedAt, todayStr);
     });
   }, [completedTasks, allTasks, todayStr]);
 
