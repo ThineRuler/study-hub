@@ -1,0 +1,62 @@
+@startuml
+title StudyHub - Authentication & Email Verification Use Cases
+caption COP4331 POOSD Group 15 · Authentication & Account Recovery Subsystem
+
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam defaultFontName "Helvetica", "Arial", sans-serif
+skinparam roundcorner 8
+
+' Styling
+skinparam ArrowColor #334155
+skinparam ActorBorderColor #334155
+skinparam ActorBackgroundColor #F1F5F9
+skinparam UsecaseBackgroundColor #FFFFFF
+skinparam UsecaseBorderColor #475569
+skinparam UsecaseFontColor #0F172A
+skinparam RectangleBorderColor #94A3B8
+skinparam RectangleBackgroundColor #F8FAFC
+
+' Actors
+actor "User" as User
+actor "Resend Email Service" as Resend <<External System>>
+
+rectangle "StudyHub Authentication & Email Subsystem" {
+  usecase "Register\n(Sign Up)" as UC_Register
+  usecase "Send Verification Code" as UC_SendVerifyCode
+  usecase "Verify Email\n(Enter 6-Digit Code)" as UC_VerifyEmail
+  usecase "Log In" as UC_Login
+  usecase "Forgot Password\n(Request Reset)" as UC_ForgotPassword
+  usecase "Send Password Reset Link" as UC_SendResetLink
+  usecase "Reset Password\n(Set New Password)" as UC_ResetPassword
+}
+
+' User Associations
+User --> UC_Register
+User --> UC_VerifyEmail
+User --> UC_Login
+User --> UC_ForgotPassword
+User --> UC_ResetPassword
+
+' Email Delivery Relationships
+UC_Register ..> UC_SendVerifyCode : <<include>>
+UC_SendVerifyCode --> Resend
+
+UC_ForgotPassword ..> UC_SendResetLink : <<include>>
+UC_SendResetLink --> Resend
+
+' Explanatory Notes
+note right of UC_SendVerifyCode
+  Resend API generates and emails
+  a 6-digit verification code to
+  verify the registered address.
+end note
+
+note right of UC_SendResetLink
+  Resend API delivers a secure
+  password reset link and token
+  to recover account access.
+end note
+
+@enduml

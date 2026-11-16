@@ -1,0 +1,78 @@
+@startuml
+title StudyHub - Workspace Application Use Cases
+caption COP4331 POOSD Group 15 · Task & Focus Management Workspace
+
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam defaultFontName "Helvetica", "Arial", sans-serif
+skinparam roundcorner 8
+
+' Styling
+skinparam ArrowColor #334155
+skinparam ActorBorderColor #334155
+skinparam ActorBackgroundColor #F1F5F9
+skinparam UsecaseBackgroundColor #FFFFFF
+skinparam UsecaseBorderColor #475569
+skinparam UsecaseFontColor #0F172A
+skinparam RectangleBorderColor #94A3B8
+skinparam RectangleBackgroundColor #F8FAFC
+skinparam PackageBorderColor #64748B
+skinparam PackageBackgroundColor #F1F5F9
+
+actor "Student / User" as User
+
+rectangle "StudyHub Application Workspace" {
+
+  package "Task Management" {
+    usecase "Create Task\n(Decompose Subtasks, Confidence & Pomodoros)" as UC_CreateTask
+    usecase "Edit Task\n(Details, Priority & Completion Status)" as UC_EditTask
+    usecase "Delete Task" as UC_DeleteTask
+  }
+
+  package "Group Management" {
+    usecase "Create Group\n(Name & Color)" as UC_CreateGroup
+    usecase "Edit Group" as UC_EditGroup
+    usecase "Delete Group\n(Preserve Unassigned Tasks)" as UC_DeleteGroup
+  }
+
+  package "Focus & Pomodoro Timer" {
+    usecase "Start / Stop Timer\n(Work & Break Sessions)" as UC_Timer
+  }
+
+  package "Preferences & Account" {
+    usecase "Change Settings\n(Algorithm, Accessibility, Theme & Caps)" as UC_Settings
+    usecase "Log Out" as UC_Logout
+  }
+}
+
+' Task Actions
+User --> UC_CreateTask
+User --> UC_EditTask
+User --> UC_DeleteTask
+
+' Group Actions
+User --> UC_CreateGroup
+User --> UC_EditGroup
+User --> UC_DeleteGroup
+
+' Timer Action
+User --> UC_Timer
+
+' Settings & Session Actions
+User --> UC_Settings
+User --> UC_Logout
+
+note right of UC_CreateTask
+  Supports breaking down tasks into
+  bite-sized subtasks with confidence
+  ratings and Pomodoro estimates.
+end note
+
+note right of UC_Settings
+  Allows customizing algorithm weights,
+  flow-state inversion, focus caps,
+  OpenDyslexic font, and light/dark theme.
+end note
+
+@enduml
